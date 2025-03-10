@@ -1,6 +1,5 @@
----
-title: "Test 2"
-date: "2025-03-10T21:20:48Z"
----
+### v1.1.0 2025-03-10T21:31:35Z
 
-Test 2 Notes **Full Changelog**: https://github.com/connorolsen47/framer-images/compare/auto...new
+# Updating Test
+
+We have update the Flex Shopify marketing assets and added a modal for a better on page shopping experience for your customers. 
