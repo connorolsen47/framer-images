@@ -31,10 +31,9 @@ jobs:
 
           FILE_NAME="changelog/${RELEASE_TAG}.md"
           mkdir -p changelog  # ✅ Ensure the `/changelog/` folder exists
-          echo "---" > $FILE_NAME
-          echo "title: \"$RELEASE_NAME\"" >> $FILE_NAME
-          echo "date: \"$RELEASE_DATE\"" >> $FILE_NAME
-          echo "---" >> $FILE_NAME
+
+          # ✅ Improved formatting
+          echo "### $RELEASE_TAG $RELEASE_DATE" > $FILE_NAME
           echo "" >> $FILE_NAME
           echo "$RELEASE_BODY" >> $FILE_NAME
 
