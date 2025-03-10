@@ -1,4 +1,4 @@
-### shopify 2025-03-10T21:31:35Z
+### v1.0.0 2025-03-10T21:31:35Z
 
 # Updating Automation
 
