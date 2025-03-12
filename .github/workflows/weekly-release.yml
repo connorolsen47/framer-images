@@ -21,24 +21,42 @@ jobs:
       - name: Get PRs from the Last 7 Days
         id: get-prs
         run: |
-          PR_LIST=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100 --jq '
-          map(select(.mergedAt > "'$(date -u --date="7 days ago" +%Y-%m-%dT%H:%M:%SZ)'")) | 
-          map(
-            "- **\(.title)**\n" +  
-            "- **Author:** \(.author.name // .author.login)\n" +  # ✅ Show full name; fallback to username
-            "- **Date:** \(.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0])\n\n" +  # ✅ Convert YYYY-MM-DD to MM/DD/YYYY
-            "\(.body)\n"
-          ) | join("\n\n")')
+          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100)
+          
+          # Validate if PRs exist
+          if [[ -z "$PR_LIST_JSON" || "$PR_LIST_JSON" == "[]" ]]; then
+            echo "No valid PRs found. Skipping AI summarization."
+            echo "PR_LIST_JSON=[]" >> $GITHUB_ENV
+            exit 0  # ✅ Exit gracefully
+          fi
 
-          PR_NUMBERS=$(gh pr list --state merged --label release --json number --jq 'map(.number) | join(" ")')
-
-          echo "$PR_LIST" > changelog.md
-          echo "PR_LIST<<EOF" >> $GITHUB_ENV
-          echo "$PR_LIST" >> $GITHUB_ENV
+          # Save PR list as JSON file for debugging
+          echo "$PR_LIST_JSON" > pr_data.json
+          
+          echo "PR_LIST_JSON<<EOF" >> $GITHUB_ENV
+          echo "$PR_LIST_JSON" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          echo "PR_NUMBERS=$PR_NUMBERS" >> $GITHUB_ENV  # Store PR numbers for later
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Draft GitHub Release (Prepare JSON for OpenAI)
+        id: draft-release
+        run: |
+          RELEASE_DRAFT=$(echo "$PR_LIST_JSON" | jq -r '
+            map({
+              title: .title,
+              author: .author.name // .author.login,
+              date: (.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]),
+              body: .body
+            })'
+          )
+
+          echo "RELEASE_DRAFT<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_DRAFT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          # Save for debugging
+          echo "$RELEASE_DRAFT" > release_draft.json
 
       - name: Generate Unique Release Tag
         id: release-tag
@@ -56,17 +74,59 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create GitHub Release
+      - name: Summarize Release Notes with OpenAI
+        id: ai-summary
+        run: |
+          # Escape JSON safely
+          ESCAPED_RELEASE=$(echo "$RELEASE_DRAFT" | jq -Rs .)
+
+          # Construct JSON Payload for OpenAI
+          JSON_PAYLOAD=$(jq -n --arg text "$ESCAPED_RELEASE" '{
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: "You are an AI assistant that summarizes release notes for a GitHub project. Provide a clear, concise summary." },
+              { role: "user", content: "Summarize the following PRs into a concise, user-friendly release note: \($text)" }
+            ]
+          }')
+
+          echo "Generated JSON Payload:"
+          echo "$JSON_PAYLOAD" | jq .
+
+          # Send request to OpenAI
+          RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            --data-raw "$JSON_PAYLOAD")
+
+          echo "Raw OpenAI Response: $RESPONSE"
+
+          # Extract summary from API response
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "AI failed to generate a summary."')
+
+          echo "Generated AI Summary: $SUMMARY"
+
+          # Store AI Summary for later use
+          echo "AI_SUMMARY<<EOF" >> $GITHUB_ENV
+          echo "$SUMMARY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Create GitHub Release with AI Summary
         run: |
           RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ New title format: Month DD, YYYY
-
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.PR_LIST }}"
+          
+          gh release create "${{ env.RELEASE_TAG }}" \
+            --title "$RELEASE_TITLE" \
+            --notes "### AI-Generated Summary\n\n${{ env.AI_SUMMARY }}\n\n### PR Details\n${{ env.RELEASE_DRAFT }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update PR Labels (Change 'release' → 'released')
         run: |
-          for PR in ${{ env.PR_NUMBERS }}; do
+          PR_NUMBERS=$(echo "$PR_LIST_JSON" | jq -r 'map(.number) | join(" ")')
+
+          for PR in $PR_NUMBERS; do
             gh pr edit "$PR" --remove-label "release" --add-label "released"
           done
         env:
