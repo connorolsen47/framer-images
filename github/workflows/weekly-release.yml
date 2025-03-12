@@ -1,0 +1,41 @@
+name: Weekly Automated Release Notes
+
+on:
+  schedule:
+    - cron: "0 20 * * 5"  # ✅ Runs every Friday at 3 PM EST (20:00 UTC)
+  workflow_dispatch:  # ✅ Allows manual trigger
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  generate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ✅ Ensures full commit history for PR data
+
+      - name: Get PRs from the Last 7 Days
+        id: get-prs
+        run: |
+          PR_LIST=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100 --jq '
+          map(select(.mergedAt > "'$(date -u --date="7 days ago" +%Y-%m-%dT%H:%M:%SZ)'")) | 
+          map("### PR #\(.number): \(.title)\n- **Author:** \(.author.login)\n- **Date:** \(.mergedAt)\n\n\(.body)\n") | join("\n\n")')
+          
+          echo "$PR_LIST" > changelog.md
+          echo "PR_LIST<<EOF" >> $GITHUB_ENV
+          echo "$PR_LIST" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        run: |
+          RELEASE_TITLE="Weekly Release - $(date +'%Y-%m-%d')"
+          RELEASE_TAG="weekly-$(date +'%Y-%m-%d')"
+          gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "${{ env.PR_LIST }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
