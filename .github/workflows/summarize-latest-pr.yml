@@ -51,7 +51,7 @@ jobs:
         run: |
           echo "Generating AI summary for PR #${{ env.PR_NUMBER }}..."
 
-          # Escape JSON values
+          # Escape JSON values properly
           PR_TITLE_ESCAPED=$(echo "${{ env.PR_TITLE }}" | jq -Rs .)
           PR_BODY_ESCAPED=$(echo "${{ env.PR_BODY }}" | jq -Rs .)
           PR_FILES_ESCAPED=$(echo "${{ env.PR_FILES }}" | jq -Rs .)
