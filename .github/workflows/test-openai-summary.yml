@@ -22,23 +22,28 @@ jobs:
           # Escape special characters in input text
           ESCAPED_TEXT=$(echo "$INPUT_TEXT" | jq -Rs .)
 
+          # Construct JSON Payload
+          JSON_PAYLOAD=$(jq -n --arg text "$ESCAPED_TEXT" '{
+            model: "gpt-4o",
+            messages: [
+              { role: "system", content: "You are a helpful assistant that summarizes text." },
+              { role: "user", content: "Summarize this: \($text)" }
+            ]
+          }')
+
+          echo "Generated JSON Payload:"
+          echo "$JSON_PAYLOAD" | jq .  # ✅ Print payload for debugging
+
           # Send request to OpenAI
           RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
             -H "Content-Type: application/json" \
-            --data "{
-              \"model\": \"gpt-4o\",
-              \"messages\": [
-                {\"role\": \"system\", \"content\": \"You are a helpful assistant that summarizes text.\"},
-                {\"role\": \"user\", \"content\": \"Summarize this: $ESCAPED_TEXT\"}
-              ]
-            }")
+            --data-raw "$JSON_PAYLOAD")
 
-          # Print the full API response for debugging
           echo "Raw OpenAI Response: $RESPONSE"
 
           # Extract summary from API response
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "AI failed to generate a summary."')
 
           # Print extracted summary
           echo "Summary: $SUMMARY"
