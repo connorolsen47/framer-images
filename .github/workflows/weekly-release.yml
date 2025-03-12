@@ -21,13 +21,7 @@ jobs:
       - name: Get PRs from the Last 7 Days
         id: get-prs
         run: |
-          echo "Fetching merged PRs with the 'release' label..."
-
-          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body,files --limit 100)
-
-          # Debugging: Print raw API response
-          echo "Raw PR_LIST_JSON output:"
-          echo "$PR_LIST_JSON"
+          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100)
 
           # Check if PR_LIST_JSON is empty or invalid
           if [[ -z "$PR_LIST_JSON" || "$PR_LIST_JSON" == "[]" ]]; then
@@ -45,25 +39,15 @@ jobs:
             PR_BODY=$(echo "$PR" | jq -r '.body // "No description provided."')
             PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login // "Unknown Author"')
             PR_DATE=$(echo "$PR" | jq -r '.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0] // "Unknown Date"')
-            PR_FILES=$(echo "$PR" | jq -r '[.files[].path] | join(", ")' 2>/dev/null || echo "No files changed")
 
             # **Step 1: Keep Original PR List Format**
             PR_LIST="$PR_LIST\n- **$PR_TITLE**\n- **Author:** $PR_AUTHOR\n- **Date:** $PR_DATE\n\n$PR_BODY\n"
 
-            # **Step 2: Try AI Summary (Fails Gracefully)**
-            AI_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
-              -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-              -H "Content-Type: application/json" \
-              -d '{
-                "model": "gpt-4-turbo",
-                "messages": [
-                  {"role": "system", "content": "You are a release note assistant. Summarize the following pull request in a concise, useful way."},
-                  {"role": "user", "content": "Title: '"$PR_TITLE"'\nDescription: '"$PR_BODY"'\nFiles changed: '"$PR_FILES"'"}
-                ]
-              }' | jq -r '.choices[0].message.content' 2>/dev/null || echo "Failed to generate AI summary.")
+            # **Step 2: AI Summary (Testing AI Integration)**
+            AI_SUMMARY="TESTING"
 
             # **Step 3: Append AI Summary to AI_SUMMARIES**
-            AI_SUMMARIES="$AI_SUMMARIES\n- **$PR_TITLE**\n- **AI Summary:** $AI_RESPONSE\n"
+            AI_SUMMARIES="$AI_SUMMARIES\n- **$PR_TITLE**\n- **AI Summary:** $AI_SUMMARY\n"
           done
 
           echo "Final PR List:"
