@@ -1,4 +1,4 @@
-name: Weekly Automated Release Notes  # ✅ This restores the correct name
+name: Weekly Automated Release Notes
 
 on:
   schedule:
@@ -81,14 +81,16 @@ jobs:
             echo "Generated AI Summary: $SUMMARY"
 
             # Append the formatted summary to AI_SUMMARIES
-            AI_SUMMARIES+=$'\n\n'"### $PR_TITLE"$'\n'"**Date:** $PR_DATE"$'\n'"**Author:** $PR_AUTHOR"$'\n\n'"**Summary:**"$'\n'"$SUMMARY"$'\n'
+            AI_SUMMARIES+="\n\n### $PR_TITLE\n**Date:** $PR_DATE  \n**Author:** $PR_AUTHOR  \n\n**Summary:**  \n$SUMMARY\n"
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
           echo "Final AI Summaries:"
           echo "$AI_SUMMARIES"
 
-          # Use printf to correctly format and save multi-line environment variables
-          printf "AI_SUMMARIES<<EOF\n%s\nEOF\n" "$AI_SUMMARIES" >> $GITHUB_ENV
+          # Save the AI summaries to the environment variable
+          echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
+          echo "$AI_SUMMARIES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
@@ -112,10 +114,7 @@ jobs:
         run: |
           RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y') ($RELEASE_TAG)"
 
-          RELEASE_BODY=$(cat <<EOF
-$AI_SUMMARIES
-EOF
-          )
+          RELEASE_BODY="$AI_SUMMARIES"
 
           echo "Final Release Notes:"
           echo "$RELEASE_BODY"
