@@ -81,7 +81,7 @@ jobs:
             echo "Generated AI Summary: $SUMMARY"
 
             # Append the formatted summary to AI_SUMMARIES
-            AI_SUMMARIES+="<br><br>**$PR_TITLE**<br>Date: $PR_DATE <br>Author: $PR_AUTHOR<br><br>Summary:<br>$SUMMARY"
+            AI_SUMMARIES+="$PR_TITLE\nDate: $PR_DATE\nAuthor: $PR_AUTHOR\nSummary:\n$SUMMARY\n\n"
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
           echo "Final AI Summaries:"
