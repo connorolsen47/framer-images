@@ -1,3 +1,24 @@
+name: Weekly Release Notes
+
+on:
+  schedule:
+    - cron: '0 20 * * 5'  # ✅ Runs every Friday at 3 PM EST (8 PM UTC)
+  workflow_dispatch:  # ✅ Allows manual triggering
+
+permissions:
+  contents: write  # ✅ Required to create releases
+  pull-requests: write  # ✅ Needed to update PR labels
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ✅ Ensure full history
+
       - name: Get PRs from the Last 7 Days
         id: get-prs
         run: |
@@ -11,7 +32,7 @@
           fi
 
           AI_SUMMARIES=""
-          
+
           for PR in $(echo "$PR_LIST_JSON" | jq -c '.[]'); do
             PR_TITLE=$(echo "$PR" | jq -r '.title')
             PR_BODY=$(echo "$PR" | jq -r '.body')
@@ -38,5 +59,36 @@
           echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
           echo "$AI_SUMMARIES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Release Tag
+        id: generate-tag
+        run: |
+          BASE_TAG=$(date +'%Y-%m-%d.v1')  # ✅ Initial tag: YYYY-MM-DD.v1
+          COUNTER=1
+
+          while gh release view "$BASE_TAG" &>/dev/null; do
+            COUNTER=$((COUNTER+1))
+            BASE_TAG=$(date +'%Y-%m-%d').v$COUNTER  # ✅ Increment version if tag exists
+          done
+
+          echo "RELEASE_TAG=$BASE_TAG" >> $GITHUB_ENV
+          echo "RELEASE_TITLE=Weekly Release Notes - $(date +'%B %d, %Y')" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "$AI_SUMMARIES"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Change PR Labels to 'released'
+        run: |
+          PR_NUMBERS=$(gh pr list --state merged --label release --json number --jq 'map(.number) | join(" ")')
+          if [[ ! -z "$PR_NUMBERS" ]]; then
+            for PR in $PR_NUMBERS; do
+              gh pr edit $PR --remove-label release --add-label released
+            done
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
