@@ -42,63 +42,52 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Draft GitHub Release (Prepare JSON for OpenAI)
-        id: draft-release
+      - name: Generate AI Summaries for Each PR
+        id: ai-summaries
         run: |
-          RELEASE_DRAFT=$(echo "$PR_LIST_JSON" | jq -c '
-            map({
-              title: .title,
-              author: (.author.name // .author.login),
-              date: (.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]),
-              body: .body
-            })'
-          )
+          echo "Calling OpenAI API for each PR..."
 
-          echo "RELEASE_DRAFT<<EOF" >> $GITHUB_ENV
-          echo "$RELEASE_DRAFT" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          AI_SUMMARIES=""
+          echo "$PR_LIST_JSON" | jq -c '.[]' | while read -r PR; do
+            PR_TITLE=$(echo "$PR" | jq -r '.title')
+            PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login')
+            PR_DATE=$(echo "$PR" | jq -r '.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]')
+            PR_BODY=$(echo "$PR" | jq -r '.body')
 
-          # Save for debugging
-          echo "$RELEASE_DRAFT" > release_draft.json
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            # Construct JSON payload
+            JSON_PAYLOAD=$(jq -n --arg title "$PR_TITLE" --arg body "$PR_BODY" '{
+              model: "gpt-4o",
+              messages: [
+                { role: "system", content: "You are an AI assistant trained to generate concise and informative summaries for GitHub pull requests." },
+                { role: "user", content: "Summarize the following pull request:\n\nTitle: \($title)\nDescription: \($body)" }
+              ]
+            }')
 
-      - name: Generate OpenAI Summary for Release Notes
-        id: ai-summary
-        run: |
-          echo "Calling OpenAI API..."
+            echo "Generated JSON Payload:"
+            echo "$JSON_PAYLOAD" | jq .
 
-          # Escape special characters
-          ESCAPED_JSON=$(echo "$RELEASE_DRAFT" | jq -Rs .)
+            # Send request to OpenAI
+            RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
+              -H "Authorization: Bearer $OPENAI_API_KEY" \
+              -H "Content-Type: application/json" \
+              --data-raw "$JSON_PAYLOAD")
 
-          # Construct JSON payload properly
-          JSON_PAYLOAD=$(jq -n --argjson draft "$RELEASE_DRAFT" '{
-            model: "gpt-4o",
-            messages: [
-              { "role": "system", "content": "You are an AI assistant that generates concise and informative release notes for software updates." },
-              { "role": "user", "content": "Summarize the following pull requests into structured release notes:\n\n\($draft)" }
-            ]
-          }')
+            echo "Raw OpenAI Response: $RESPONSE"
 
-          echo "Generated JSON Payload:"
-          echo "$JSON_PAYLOAD" | jq .
+            # Extract AI summary
+            SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "AI failed to generate a summary."')
 
-          # Send request to OpenAI
-          RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            -H "Content-Type: application/json" \
-            --data-raw "$JSON_PAYLOAD")
+            echo "Generated AI Summary: $SUMMARY"
 
-          echo "Raw OpenAI Response: $RESPONSE"
+            # Append to AI_SUMMARIES
+            AI_SUMMARIES="$AI_SUMMARIES\n\n**$PR_TITLE**\n📅 $PR_DATE  \n👤 $PR_AUTHOR  \n📝 $SUMMARY\n"
+          done
 
-          # Extract summary from API response
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "AI failed to generate a summary."')
+          echo "Final AI Summaries:"
+          echo "$AI_SUMMARIES"
 
-          echo "Generated AI Summary:"
-          echo "$SUMMARY"
-
-          echo "AI_SUMMARY<<EOF" >> $GITHUB_ENV
-          echo "$SUMMARY" >> $GITHUB_ENV
+          echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
+          echo "$AI_SUMMARIES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -121,9 +110,11 @@ jobs:
 
       - name: Create GitHub Release with AI Summary
         run: |
-          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ Format: Month DD, YYYY
+          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y') (${{ env.RELEASE_TAG }})"
 
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARY }}"
+          RELEASE_BODY="## $RELEASE_TITLE\n${{ env.AI_SUMMARIES }}"
+
+          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "$RELEASE_BODY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
