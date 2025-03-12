@@ -1,23 +1,22 @@
-name: Weekly Release Notes
+name: Weekly Automated Release Notes
 
 on:
   schedule:
-    - cron: '0 20 * * 5'  # ✅ Runs every Friday at 3 PM EST (8 PM UTC)
-  workflow_dispatch:  # ✅ Allows manual triggering
+    - cron: "0 20 * * 5"  # ✅ Runs every Friday at 3 PM EST (20:00 UTC)
+  workflow_dispatch:  # ✅ Allows manual trigger
 
 permissions:
-  contents: write  # ✅ Required to create releases
-  pull-requests: write  # ✅ Needed to update PR labels
+  contents: write
+  pull-requests: write  # ✅ Required to modify PR labels
 
 jobs:
-  create-release:
+  generate-release:
     runs-on: ubuntu-latest
     steps:
-
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # ✅ Ensure full history
+          fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
       - name: Get PRs from the Last 7 Days
         id: get-prs
@@ -27,10 +26,11 @@ jobs:
           # Check if PR_LIST_JSON is empty or invalid
           if [[ -z "$PR_LIST_JSON" || "$PR_LIST_JSON" == "[]" ]]; then
             echo "No valid PRs found. Skipping AI summarization."
-            echo "AI_SUMMARIES=No pull requests found for this release." >> $GITHUB_ENV
+            echo "PR_LIST=No pull requests found for this release." >> $GITHUB_ENV
             exit 0  # ✅ Exit gracefully so workflow doesn't fail
           fi
 
+          PR_LIST=""
           AI_SUMMARIES=""
 
           for PR in $(echo "$PR_LIST_JSON" | jq -c '.[]'); do
@@ -40,21 +40,28 @@ jobs:
             PR_DATE=$(echo "$PR" | jq -r '.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]')
             PR_FILES=$(echo "$PR" | jq -r '[.files[].path] | join(", ")')
 
-            # Generate AI Summary
-            SUMMARY=$(curl -s https://api.openai.com/v1/chat/completions \
+            # **Step 1: Keep Original PR List Format**
+            PR_LIST="$PR_LIST\n- **$PR_TITLE**\n- **Author:** $PR_AUTHOR\n- **Date:** $PR_DATE\n\n$PR_BODY\n"
+
+            # **Step 2: Try AI Summary (Fails Gracefully)**
+            AI_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
               -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
               -H "Content-Type: application/json" \
               -d '{
                 "model": "gpt-4-turbo",
                 "messages": [
-                  {"role": "system", "content": "You are a release note assistant. Summarize the following pull request changes in a concise, useful way."},
+                  {"role": "system", "content": "You are a release note assistant. Summarize the following pull request in a concise, useful way."},
                   {"role": "user", "content": "Title: '"$PR_TITLE"'\nDescription: '"$PR_BODY"'\nFiles changed: '"$PR_FILES"'"}
                 ]
-              }' | jq -r '.choices[0].message.content')
+              }' | jq -r '.choices[0].message.content' || echo "Failed to generate AI summary.")
 
-            # Append to AI summaries
-            AI_SUMMARIES="$AI_SUMMARIES\n- **$PR_TITLE**\n- **Author:** $PR_AUTHOR\n- **Date:** $PR_DATE\n\n$SUMMARY\n"
+            # **Step 3: Append AI Summary to AI_SUMMARIES**
+            AI_SUMMARIES="$AI_SUMMARIES\n- **$PR_TITLE**\n- **AI Summary:** $AI_RESPONSE\n"
           done
+
+          echo "PR_LIST<<EOF" >> $GITHUB_ENV
+          echo "$PR_LIST" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
           echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
           echo "$AI_SUMMARIES" >> $GITHUB_ENV
@@ -62,33 +69,34 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate Release Tag
-        id: generate-tag
+      - name: Generate Unique Release Tag
+        id: release-tag
         run: |
-          BASE_TAG=$(date +'%Y-%m-%d.v1')  # ✅ Initial tag: YYYY-MM-DD.v1
+          BASE_TAG=$(date +'%Y-%m-%d').v1
+          TAG=$BASE_TAG
           COUNTER=1
-
-          while gh release view "$BASE_TAG" &>/dev/null; do
-            COUNTER=$((COUNTER+1))
-            BASE_TAG=$(date +'%Y-%m-%d').v$COUNTER  # ✅ Increment version if tag exists
+          
+          while gh release view "$TAG" >/dev/null 2>&1; do
+            COUNTER=$((COUNTER + 1))
+            TAG="${BASE_TAG}.${COUNTER}"
           done
-
-          echo "RELEASE_TAG=$BASE_TAG" >> $GITHUB_ENV
-          echo "RELEASE_TITLE=Weekly Release Notes - $(date +'%B %d, %Y')" >> $GITHUB_ENV
-
-      - name: Create GitHub Release
-        run: |
-          gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "$AI_SUMMARIES"
+          
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Change PR Labels to 'released'
+      - name: Create GitHub Release
         run: |
-          PR_NUMBERS=$(gh pr list --state merged --label release --json number --jq 'map(.number) | join(" ")')
-          if [[ ! -z "$PR_NUMBERS" ]]; then
-            for PR in $PR_NUMBERS; do
-              gh pr edit $PR --remove-label release --add-label released
-            done
-          fi
+          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ New title format: Month DD, YYYY
+
+          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.PR_LIST }}\n\n### AI-Generated Summaries\n\n${{ env.AI_SUMMARIES }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update PR Labels (Change 'release' → 'released')
+        run: |
+          for PR in ${{ env.PR_NUMBERS }}; do
+            gh pr edit "$PR" --remove-label "release" --add-label "released"
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
