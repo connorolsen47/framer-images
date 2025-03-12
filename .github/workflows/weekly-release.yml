@@ -37,10 +37,10 @@ jobs:
           RELEASE_DRAFT=$(echo "$PR_LIST_JSON" | jq -c '
             map({
               title: .title,
-              author: (.author.name // .author.login),  # ✅ Corrected fallback for author name
+              author: (.author.name // .author.login),
               date: (.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]),
               body: .body,
-              files: (if .files then [.files[].path] else [] end)  # ✅ Corrected conditional syntax
+              files: (if .files then [.files[].path] else [] end)
             })'
           )
 
@@ -112,8 +112,11 @@ jobs:
       - name: Create GitHub Release (Using AI Summary)
         run: |
           RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ Format: Month DD, YYYY
-
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARY }}"
+          
+          # ✅ Fixing multiline input to `gh release create`
+          gh release create "${{ env.RELEASE_TAG }}" \
+            --title "$RELEASE_TITLE" \
+            --notes "${{ env.AI_SUMMARY }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
