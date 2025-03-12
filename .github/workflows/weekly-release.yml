@@ -41,11 +41,15 @@ jobs:
           
           echo "Processing PRs..."
           echo "$PR_LIST_JSON" | jq -c '.[]' | while read -r PR; do
-            PR_TITLE=$(echo "$PR" | jq -r '.title // "No Title"' | jq -Rs .)
-            PR_BODY=$(echo "$PR" | jq -r '.body // "No description provided."' | jq -Rs .)
+            PR_TITLE=$(echo "$PR" | jq -r '.title // "No Title"')
+            PR_BODY=$(echo "$PR" | jq -r '.body // "No description provided."')
             PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login // "Unknown Author"')
             PR_DATE=$(echo "$PR" | jq -r '.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0] // "Unknown Date"')
             PR_FILES=$(echo "$PR" | jq -r '[.files[].path] | join(", ")' 2>/dev/null || echo "No files changed")
+
+            # Escape JSON values
+            PR_TITLE_ESCAPED=$(echo "$PR_TITLE" | jq -Rs .)
+            PR_BODY_ESCAPED=$(echo "$PR_BODY" | jq -Rs .)
             PR_FILES_ESCAPED=$(echo "$PR_FILES" | jq -Rs .)
           
             echo "Processing PR: $PR_TITLE"
@@ -55,17 +59,25 @@ jobs:
             # **Step 1: Keep Original PR List Format**
             PR_LIST="$PR_LIST\n- **$PR_TITLE**\n- **Author:** $PR_AUTHOR\n- **Date:** $PR_DATE\n\n$PR_BODY\n"
           
-            # **Step 2: AI Summary Request (Proper JSON Formatting)**
+            # **Step 2: AI Summary Request**
+            JSON_PAYLOAD=$(cat <<EOF
+            {
+              "model": "gpt-4o",
+              "messages": [
+                {"role": "system", "content": "You are an AI assistant trained to generate concise and informative release notes. Summarize the following pull request details in a way that highlights key changes."},
+                {"role": "user", "content": "Title: $PR_TITLE_ESCAPED\nDescription: $PR_BODY_ESCAPED\nFiles changed: $PR_FILES_ESCAPED"}
+              ]
+            }
+EOF
+            )
+
+            echo "Sending JSON payload to OpenAI:"
+            echo "$JSON_PAYLOAD" | jq .  # ✅ Print formatted JSON payload for debugging
+          
             AI_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
               -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
               -H "Content-Type: application/json" \
-              --json "{
-                \"model\": \"gpt-4o\",
-                \"messages\": [
-                  {\"role\": \"system\", \"content\": \"You are an AI assistant trained to generate concise and informative release notes. Summarize the following pull request details in a way that highlights key changes.\"},
-                  {\"role\": \"user\", \"content\": \"Title: $PR_TITLE\nDescription: $PR_BODY\nFiles changed: $PR_FILES_ESCAPED\"}
-                ]
-              }")
+              --data "$JSON_PAYLOAD")
 
             echo "Raw AI response: $AI_RESPONSE"
           
