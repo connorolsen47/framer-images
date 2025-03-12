@@ -21,9 +21,14 @@ jobs:
       - name: Get PRs from the Last 7 Days
         id: get-prs
         run: |
-          PR_LIST=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100 --jq '
+          PR_LIST=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body,authorAssociation --limit 100 --jq '
           map(select(.mergedAt > "'$(date -u --date="7 days ago" +%Y-%m-%dT%H:%M:%SZ)'")) | 
-          map("### PR #\(.number): \(.title)\n- **Author:** \(.author.login)\n- **Date:** \(.mergedAt)\n\n\(.body)\n") | join("\n\n")')
+          map(
+            "- **\(.title)**\n" +  
+            "- **Author:** \(.author.name // .author.login)\n" +  # ✅ Show full name; fallback to username
+            "- **Date:** \(.mergedAt[:10] | sub("-"; "/"; "g"))\n\n" +  # ✅ Convert YYYY-MM-DD to MM/DD/YYYY
+            "\(.body)\n"
+          ) | join("\n\n")')
 
           PR_NUMBERS=$(gh pr list --state merged --label release --json number --jq 'map(.number) | join(" ")')
 
