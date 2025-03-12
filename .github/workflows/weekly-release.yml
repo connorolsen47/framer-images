@@ -60,7 +60,7 @@ jobs:
               model: "gpt-4o",
               messages: [
                 { role: "system", content: "You are an AI assistant trained to generate concise and informative summaries for GitHub pull requests." },
-                { role: "user", content: "Summarize the following pull request:\n\nTitle: \($title)\nDescription: \($body)" }
+                { role: "user", content: "Summarize the following pull request:<br><br>Title: \($title)<br>Description: \($body)" }
               ]
             }')
 
@@ -80,8 +80,8 @@ jobs:
 
             echo "Generated AI Summary: $SUMMARY"
 
-            # Append the formatted summary to AI_SUMMARIES
-            AI_SUMMARIES+="\n\n### $PR_TITLE\n**Date:** $PR_DATE  \n**Author:** $PR_AUTHOR  \n\n**Summary:**  \n$SUMMARY\n"
+            # Append the formatted summary to AI_SUMMARIES using <br> instead of \n
+            AI_SUMMARIES+="<br><br>### $PR_TITLE<br>**Date:** $PR_DATE <br>**Author:** $PR_AUTHOR <br><br>**Summary:** <br>$SUMMARY<br>"
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
           echo "Final AI Summaries:"
