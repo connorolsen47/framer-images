@@ -1,27 +1,14 @@
-name: Weekly Automated Release Notes
-
-on:
-  schedule:
-    - cron: "0 20 * * 5"  # ✅ Runs every Friday at 3 PM EST (20:00 UTC)
-  workflow_dispatch:  # ✅ Allows manual trigger
-
-permissions:
-  contents: write
-  pull-requests: write  # ✅ Required to modify PR labels
-
-jobs:
-  generate-release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # ✅ Ensures full commit history for PR data
-
       - name: Get PRs from the Last 7 Days
         id: get-prs
         run: |
           PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body,files --limit 100)
+
+          # Check if PR_LIST_JSON is empty or invalid
+          if [[ -z "$PR_LIST_JSON" || "$PR_LIST_JSON" == "[]" ]]; then
+            echo "No valid PRs found. Skipping AI summarization."
+            echo "AI_SUMMARIES=No pull requests found for this release." >> $GITHUB_ENV
+            exit 0  # ✅ Exit gracefully so workflow doesn't fail
+          fi
 
           AI_SUMMARIES=""
           
@@ -51,37 +38,5 @@ jobs:
           echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
           echo "$AI_SUMMARIES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate Unique Release Tag
-        id: release-tag
-        run: |
-          BASE_TAG=$(date +'%Y-%m-%d').v1
-          TAG=$BASE_TAG
-          COUNTER=1
-          
-          while gh release view "$TAG" >/dev/null 2>&1; do
-            COUNTER=$((COUNTER + 1))
-            TAG="${BASE_TAG}.${COUNTER}"
-          done
-          
-          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GitHub Release with AI Summary
-        run: |
-          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"
-
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARIES }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update PR Labels (Change 'release' → 'released')
-        run: |
-          for PR in $(echo "$PR_LIST_JSON" | jq -r '.[].number'); do
-            gh pr edit "$PR" --remove-label "release" --add-label "released"
-          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
