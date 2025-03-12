@@ -81,7 +81,7 @@ jobs:
             echo "Generated AI Summary: $SUMMARY"
 
             # Append the formatted summary to AI_SUMMARIES
-            AI_SUMMARIES+="\n\n**$PR_TITLE**\n📅 $PR_DATE  \n👤 $PR_AUTHOR  \n📝 $SUMMARY\n"
+            AI_SUMMARIES+="\n\n### $PR_TITLE\n**Date:** $PR_DATE  \n**Author:** $PR_AUTHOR  \n\n**Summary:**  \n$SUMMARY\n"
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
           echo "Final AI Summaries:"
@@ -114,7 +114,7 @@ jobs:
         run: |
           RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y') ($RELEASE_TAG)"
 
-          RELEASE_BODY="## $RELEASE_TITLE\n$AI_SUMMARIES"
+          RELEASE_BODY="$AI_SUMMARIES"
 
           echo "Final Release Notes:"
           echo "$RELEASE_BODY"
