@@ -7,7 +7,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write  # ✅ Required to modify PR labels
 
 jobs:
   generate-release:
@@ -24,18 +24,31 @@ jobs:
           PR_LIST=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100 --jq '
           map(select(.mergedAt > "'$(date -u --date="7 days ago" +%Y-%m-%dT%H:%M:%SZ)'")) | 
           map("### PR #\(.number): \(.title)\n- **Author:** \(.author.login)\n- **Date:** \(.mergedAt)\n\n\(.body)\n") | join("\n\n")')
-          
+
+          PR_NUMBERS=$(gh pr list --state merged --label release --json number --jq 'map(.number) | join(" ")')
+
           echo "$PR_LIST" > changelog.md
           echo "PR_LIST<<EOF" >> $GITHUB_ENV
           echo "$PR_LIST" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+          echo "PR_NUMBERS=$PR_NUMBERS" >> $GITHUB_ENV  # Store PR numbers for later
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
         run: |
-          RELEASE_TITLE="Weekly Release - $(date +'%Y-%m-%d')"
-          RELEASE_TAG="weekly-$(date +'%Y-%m-%d')"
+          RELEASE_DATE=$(date +'%Y-%m-%d')  # ✅ Get date in YYYY-MM-DD format
+          RELEASE_TAG="$RELEASE_DATE.v1"  # ✅ New tag format: YYYY-MM-DD.v1
+          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ New title format: Month DD, YYYY
+
           gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "${{ env.PR_LIST }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update PR Labels (Change 'release' → 'released')
+        run: |
+          for PR in ${{ env.PR_NUMBERS }}; do
+            gh pr edit "$PR" --remove-label "release" --add-label "released"
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
