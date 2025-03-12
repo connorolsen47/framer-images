@@ -25,7 +25,7 @@ jobs:
           map(select(.mergedAt > "'$(date -u --date="7 days ago" +%Y-%m-%dT%H:%M:%SZ)'")) | 
           map(
             "- **\(.title)**\n" +  
-            "- **Author:** \(.author.name // .author.login)\n" +  # ✅ Show full name; fallback to username
+            "- **Author:** \(.author.login)\n" +  # ✅ Only username for now (can debug later)
             "- **Date:** \(.mergedAt[:10] | sub("-"; "/"; "g"))\n\n" +  # ✅ Convert YYYY-MM-DD to MM/DD/YYYY
             "\(.body)\n"
           ) | join("\n\n")')
@@ -40,13 +40,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate Unique Release Tag
+        id: release-tag
+        run: |
+          BASE_TAG=$(date +'%Y-%m-%d').v1
+          TAG=$BASE_TAG
+          COUNTER=1
+          
+          while gh release view "$TAG" >/dev/null 2>&1; do
+            COUNTER=$((COUNTER + 1))
+            TAG="${BASE_TAG}.${COUNTER}"
+          done
+          
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create GitHub Release
         run: |
-          RELEASE_DATE=$(date +'%Y-%m-%d')  # ✅ Get date in YYYY-MM-DD format
-          RELEASE_TAG="$RELEASE_DATE.v1"  # ✅ New tag format: YYYY-MM-DD.v1
           RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ New title format: Month DD, YYYY
 
-          gh release create "$RELEASE_TAG" --title "$RELEASE_TITLE" --notes "${{ env.PR_LIST }}"
+          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.PR_LIST }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
