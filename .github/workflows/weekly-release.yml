@@ -46,9 +46,10 @@ jobs:
         id: ai-summaries
         run: |
           echo "Calling OpenAI API for each PR..."
-
+          
           AI_SUMMARIES=""
-          echo "$PR_LIST_JSON" | jq -c '.[]' | while read -r PR; do
+
+          while read -r PR; do
             PR_TITLE=$(echo "$PR" | jq -r '.title')
             PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login')
             PR_DATE=$(echo "$PR" | jq -r '.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]')
@@ -79,13 +80,14 @@ jobs:
 
             echo "Generated AI Summary: $SUMMARY"
 
-            # Append to AI_SUMMARIES
-            AI_SUMMARIES="$AI_SUMMARIES\n\n**$PR_TITLE**\n📅 $PR_DATE  \n👤 $PR_AUTHOR  \n📝 $SUMMARY\n"
-          done
+            # Append the formatted summary to AI_SUMMARIES
+            AI_SUMMARIES+="\n\n**$PR_TITLE**\n📅 $PR_DATE  \n👤 $PR_AUTHOR  \n📝 $SUMMARY\n"
+          done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
           echo "Final AI Summaries:"
           echo "$AI_SUMMARIES"
 
+          # Save the AI summaries to the environment variable
           echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
           echo "$AI_SUMMARIES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -110,13 +112,18 @@ jobs:
 
       - name: Create GitHub Release with AI Summary
         run: |
-          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y') (${{ env.RELEASE_TAG }})"
+          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y') ($RELEASE_TAG)"
 
-          RELEASE_BODY="## $RELEASE_TITLE\n${{ env.AI_SUMMARIES }}"
+          RELEASE_BODY="## $RELEASE_TITLE\n$AI_SUMMARIES"
+
+          echo "Final Release Notes:"
+          echo "$RELEASE_BODY"
 
           gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "$RELEASE_BODY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_SUMMARIES: ${{ env.AI_SUMMARIES }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
 
       - name: Update PR Labels (Change 'release' → 'released')
         run: |
