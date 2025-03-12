@@ -1,7 +1,7 @@
-name: Test OpenAI API Summarization
+name: Test OpenAI Summarization
 
 on:
-  workflow_dispatch:  # ✅ Allows manual trigger
+  workflow_dispatch:  # ✅ Manually trigger this action
 
 permissions:
   contents: read
@@ -12,16 +12,13 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Define Input Text
-        run: |
-          INPUT_TEXT="GitHub Actions automate workflows. They allow developers to automate software development tasks such as CI/CD, testing, and deployment."
-          echo "INPUT_TEXT=$INPUT_TEXT" >> $GITHUB_ENV
+        with:
+          fetch-depth: 0  # ✅ Ensures full commit history
 
       - name: Call OpenAI for Summarization
         run: |
           echo "Calling OpenAI API..."
-
+          
           # Escape special characters in input text
           ESCAPED_TEXT=$(echo "$INPUT_TEXT" | jq -Rs .)
 
@@ -37,11 +34,14 @@ jobs:
               ]
             }")
 
+          # Print the full API response for debugging
+          echo "Raw OpenAI Response: $RESPONSE"
+
           # Extract summary from API response
           SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
 
-          # Print summary
+          # Print extracted summary
           echo "Summary: $SUMMARY"
-
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          INPUT_TEXT: "GitHub Actions automate workflows. They allow developers to automate software development tasks such as CI/CD, testing, and deployment."
