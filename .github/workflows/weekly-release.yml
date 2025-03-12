@@ -18,11 +18,11 @@ jobs:
         with:
           fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
-      - name: Get PRs from the Last 7 Days (with File Changes)
+      - name: Get PRs from the Last 7 Days (without File Changes)
         id: get-prs
         run: |
           echo "Fetching PRs from the last 7 days..."
-          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body,files --limit 100)
+          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100)
 
           echo "Raw PR_LIST_JSON output:"
           echo "$PR_LIST_JSON" > pr_list_raw.json
@@ -39,8 +39,7 @@ jobs:
               title: .title,
               author: (.author.name // .author.login),
               date: (.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]),
-              body: .body,
-              files: (if .files then [.files[].path] else [] end)
+              body: .body
             })'
           )
 
@@ -53,19 +52,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate AI Summary from PR Details & Files
+      - name: Generate AI Summary from PR Details (No File Changes)
         id: ai-summary
         run: |
           echo "Calling OpenAI API for summarization..."
           
           ESCAPED_DRAFT=$(echo "$RELEASE_DRAFT" | jq -Rs .)
 
-          # Construct JSON Payload for OpenAI
+          # Construct JSON Payload for OpenAI (without file changes)
           JSON_PAYLOAD=$(jq -n --arg text "$ESCAPED_DRAFT" '{
             model: "gpt-4o",
             messages: [
               { role: "system", content: "You are a helpful assistant that summarizes GitHub pull request changes into structured and clear release notes." },
-              { role: "user", content: "Summarize the following PRs and their file changes into a useful release note:\n\($text)" }
+              { role: "user", content: "Summarize the following PRs into a useful release note, **without listing the affected files**:\n\($text)" }
             ]
           }')
 
