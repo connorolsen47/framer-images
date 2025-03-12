@@ -1,0 +1,5 @@
+changelog:
+  categories:
+    - title: Weekly Release Notes 📢
+      labels:
+        - release  # ✅ Only include PRs labeled `release`
