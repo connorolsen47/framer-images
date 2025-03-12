@@ -18,10 +18,16 @@ jobs:
         with:
           fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
-      - name: Get PRs from the Last 7 Days
+      - name: Fetch PRs from the Last 7 Days
         id: get-prs
         run: |
+          echo "Fetching merged PRs with the 'release' label..."
+          
           PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body,files --limit 100)
+
+          # Debugging: Print raw API response
+          echo "Raw PR_LIST_JSON output:"
+          echo "$PR_LIST_JSON"
 
           # Check if PR_LIST_JSON is empty or invalid
           if [[ -z "$PR_LIST_JSON" || "$PR_LIST_JSON" == "[]" ]]; then
@@ -41,6 +47,10 @@ jobs:
             PR_DATE=$(echo "$PR" | jq -r '.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0] // "Unknown Date"')
             PR_FILES=$(echo "$PR" | jq -r '[.files[].path] | join(", ")' 2>/dev/null || echo "No files changed")
 
+            echo "Processing PR: $PR_TITLE"
+            echo "Author: $PR_AUTHOR, Date: $PR_DATE"
+            echo "Files changed: $PR_FILES"
+
             # **Step 1: Keep Original PR List Format**
             PR_LIST="$PR_LIST\n- **$PR_TITLE**\n- **Author:** $PR_AUTHOR\n- **Date:** $PR_DATE\n\n$PR_BODY\n"
 
@@ -54,10 +64,16 @@ jobs:
                   {"role": "system", "content": "You are an AI assistant trained to generate concise and informative release notes. Summarize the following pull request details in a way that highlights key changes."},
                   {"role": "user", "content": "Title: '"$PR_TITLE"'\nDescription: '"$PR_BODY"'\nFiles changed: '"$PR_FILES"'"}
                 ]
-              }' | jq -r '.choices[0].message.content' 2>/dev/null || echo "AI failed to generate a summary.")
+              }')
+
+            echo "Raw AI response: $AI_RESPONSE"
+
+            SUMMARY=$(echo "$AI_RESPONSE" | jq -r '.choices[0].message.content' 2>/dev/null || echo "AI failed to generate a summary.")
+
+            echo "Generated AI Summary: $SUMMARY"
 
             # **Step 3: Append AI Summary to AI_SUMMARIES**
-            AI_SUMMARIES="$AI_SUMMARIES\n- **$PR_TITLE**\n- **AI Summary:** $AI_RESPONSE\n"
+            AI_SUMMARIES="$AI_SUMMARIES\n- **$PR_TITLE**\n- **AI Summary:** $SUMMARY\n"
           done
 
           echo "Final PR List:"
@@ -75,6 +91,7 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Generate Unique Release Tag
         id: release-tag
@@ -96,7 +113,7 @@ jobs:
         run: |
           RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ New title format: Month DD, YYYY
 
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.PR_LIST }}\n\n### AI-Generated Summaries\n${{ env.AI_SUMMARIES }}"
+          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "\n\n### AI-Generated Summaries\n${{ env.AI_SUMMARIES }}\n\n### PR Details\n${{ env.PR_LIST }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
