@@ -18,15 +18,13 @@ jobs:
         with:
           fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
-      - name: Get PRs from the Last 7 Days
+      - name: Get PRs from the Last 7 Days (with File Changes)
         id: get-prs
         run: |
-          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100)
-
+          echo "Fetching PRs from the last 7 days..."
+          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body,files --limit 100)
+          
           echo "Raw PR_LIST_JSON output:"
-          echo "$PR_LIST_JSON"
-
-          # Save raw JSON for debugging
           echo "$PR_LIST_JSON" > pr_list_raw.json
 
           # Ensure we have valid PRs
@@ -35,48 +33,40 @@ jobs:
             echo "PR_LIST_JSON=[]" >> $GITHUB_ENV
             exit 0  # ✅ Exit gracefully so workflow doesn't fail
           fi
-
-          echo "PR_LIST_JSON<<EOF" >> $GITHUB_ENV
-          echo "$PR_LIST_JSON" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Draft GitHub Release (Prepare JSON for OpenAI)
-        id: draft-release
-        run: |
-          RELEASE_DRAFT=$(echo "$PR_LIST_JSON" | jq -r '
+          
+          RELEASE_DRAFT=$(echo "$PR_LIST_JSON" | jq -c '
             map({
               title: .title,
-              author: (.author.name // .author.login),
+              author: .author.name // .author.login,
               date: (.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]),
-              body: .body
-            }) | tojson'
+              body: .body,
+              files: [.files[].path]  # ✅ Include modified files
+            })'
           )
 
           echo "RELEASE_DRAFT<<EOF" >> $GITHUB_ENV
           echo "$RELEASE_DRAFT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
+          
           # Save for debugging
           echo "$RELEASE_DRAFT" > release_draft.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate OpenAI Summary for Release Notes
+      - name: Generate AI Summary
         id: ai-summary
         run: |
-          echo "Calling OpenAI API..."
-
-          # Escape special characters
-          ESCAPED_JSON=$(echo "$RELEASE_DRAFT" | jq -Rs .)
+          echo "Calling OpenAI API for release notes summary..."
+          
+          # Escape JSON for safe input
+          ESCAPED_DRAFT=$(echo "$RELEASE_DRAFT" | jq -Rs .)
 
           # Construct JSON payload
-          JSON_PAYLOAD=$(jq -n --argjson draft "$RELEASE_DRAFT" '{
+          JSON_PAYLOAD=$(jq -n --argjson draft "$ESCAPED_DRAFT" '{
             model: "gpt-4o",
             messages: [
-              { role: "system", content: "You are an AI assistant trained to generate concise and informative release notes." },
-              { role: "user", content: "Summarize the following pull requests into a structured release note format:\n\n\($draft)" }
+              { role: "system", content: "You are an AI assistant trained to generate concise and informative release notes. Summarize the following PR details, including file changes." },
+              { role: "user", content: "Here are the merged PRs:\n\($draft)" }
             ]
           }')
 
@@ -91,14 +81,14 @@ jobs:
 
           echo "Raw OpenAI Response: $RESPONSE"
 
-          # Extract summary from API response
-          SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "AI failed to generate a summary."')
+          # Extract AI-generated summary
+          AI_SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "AI failed to generate a summary."')
 
           echo "Generated AI Summary:"
-          echo "$SUMMARY"
+          echo "$AI_SUMMARY"
 
           echo "AI_SUMMARY<<EOF" >> $GITHUB_ENV
-          echo "$SUMMARY" >> $GITHUB_ENV
+          echo "$AI_SUMMARY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -109,19 +99,19 @@ jobs:
           BASE_TAG=$(date +'%Y-%m-%d').v1
           TAG=$BASE_TAG
           COUNTER=1
-
+          
           while gh release view "$TAG" >/dev/null 2>&1; do
             COUNTER=$((COUNTER + 1))
             TAG="${BASE_TAG}.${COUNTER}"
           done
-
+          
           echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create GitHub Release with AI Summary
+      - name: Create GitHub Release
         run: |
-          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ Format: Month DD, YYYY
+          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"
 
           gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARY }}"
         env:
