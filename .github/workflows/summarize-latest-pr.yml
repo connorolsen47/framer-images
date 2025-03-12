@@ -1,29 +1,10 @@
-name: Summarize Latest PR with AI
-
-on:
-  workflow_dispatch:  # ✅ Manual trigger only
-
-permissions:
-  contents: write  # ✅ Required for creating releases
-
-jobs:
-  summarize-latest-pr:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: OpenAI Release Notes Action
+        uses: diegobugs/openai-release-notes-action@v1.1.6
         with:
-          fetch-depth: 0  # ✅ Ensure we have full history
-
-      - name: Generate AI Summary from Commits
-        uses: post-op/chatgpt-release@v1
-        with:
-          version: 'v1.0.0'  # ✅ You can update this dynamically later
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Print Release Notes
-        run: |
-          echo "✅ AI-generated release notes are ready."
+          language: "en"  # ✅ Default is English
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}  # ✅ Ensure this secret is added to GitHub
+          token: ${{ secrets.GITHUB_TOKEN }}  # ✅ GitHub token for accessing commit history
+          version: "v1.0.0"  # ✅ Update with the correct release version
+          model: "gpt-4o"  # ✅ Best OpenAI model available
+          use-github-generated-notes: true  # ✅ Use GitHub's release notes if available
+          use-mention-commits-prs: true  # ✅ Include mentions of commits and PRs in the summary
