@@ -1,99 +1,29 @@
-name: Summarize Latest PR
+name: Summarize Latest PR with AI
 
 on:
   workflow_dispatch:  # ✅ Manual trigger only
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: write  # ✅ Required for creating releases
 
 jobs:
   summarize-latest-pr:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # ✅ Ensure we have full history
 
-      - name: Get Most Recent Merged PR
-        id: get-latest-pr
+      - name: Generate AI Summary from Commits
+        uses: post-op/chatgpt-release@v1
+        with:
+          version: 'v1.0.0'  # ✅ You can update this dynamically later
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Print Release Notes
         run: |
-          echo "Fetching the latest merged PR..."
-
-          LATEST_PR_JSON=$(gh pr list --state merged --json number,title,author,mergedAt,body,files --limit 1)
-
-          echo "Raw PR JSON:"
-          echo "$LATEST_PR_JSON"
-
-          if [[ -z "$LATEST_PR_JSON" || "$LATEST_PR_JSON" == "[]" ]]; then
-            echo "No merged PRs found. Exiting."
-            exit 1
-          fi
-
-          PR_NUMBER=$(echo "$LATEST_PR_JSON" | jq -r '.[0].number')
-          PR_TITLE=$(echo "$LATEST_PR_JSON" | jq -r '.[0].title')
-          PR_BODY=$(echo "$LATEST_PR_JSON" | jq -r '.[0].body // "No description provided."')
-          PR_AUTHOR=$(echo "$LATEST_PR_JSON" | jq -r '.[0].author.name // .[0].author.login')
-          PR_DATE=$(echo "$LATEST_PR_JSON" | jq -r '.[0].mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]')
-          PR_FILES=$(echo "$LATEST_PR_JSON" | jq -r '[.[0].files[].path] | join(", ")' 2>/dev/null || echo "No files changed")
-
-          # Store data for next steps
-          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
-          echo "PR_TITLE=$PR_TITLE" >> $GITHUB_ENV
-          echo "PR_BODY=$PR_BODY" >> $GITHUB_ENV
-          echo "PR_AUTHOR=$PR_AUTHOR" >> $GITHUB_ENV
-          echo "PR_DATE=$PR_DATE" >> $GITHUB_ENV
-          echo "PR_FILES=$PR_FILES" >> $GITHUB_ENV
-
-      - name: Generate AI Summary
-        id: ai-summary
-        run: |
-          echo "Generating AI summary for PR #${{ env.PR_NUMBER }}..."
-
-          # Escape JSON values properly
-          PR_TITLE_ESCAPED=$(echo "${{ env.PR_TITLE }}" | jq -Rs .)
-          PR_BODY_ESCAPED=$(echo "${{ env.PR_BODY }}" | jq -Rs .)
-          PR_FILES_ESCAPED=$(echo "${{ env.PR_FILES }}" | jq -Rs .)
-
-          JSON_PAYLOAD=$(cat <<EOF
-          {
-            "model": "gpt-4o",
-            "messages": [
-              {"role": "system", "content": "You are an AI assistant trained to generate concise and informative release notes. Summarize the following pull request details in a way that highlights key changes."},
-              {"role": "user", "content": "Title: $PR_TITLE_ESCAPED\nDescription: $PR_BODY_ESCAPED\nFiles changed: $PR_FILES_ESCAPED"}
-            ]
-          }
-EOF
-          )
-
-          echo "Sending JSON payload to OpenAI:"
-          echo "$JSON_PAYLOAD" | jq .  # ✅ Print JSON payload for debugging
-
-          AI_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
-            -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            --data "$JSON_PAYLOAD")
-
-          echo "Raw AI response:"
-          echo "$AI_RESPONSE"
-
-          SUMMARY=$(echo "$AI_RESPONSE" | jq -r '.choices[0].message.content' 2>/dev/null || echo "AI failed to generate a summary.")
-
-          echo "Generated AI Summary:"
-          echo "$SUMMARY"
-
-          # Save summary to GitHub Actions environment
-          echo "AI_SUMMARY=$SUMMARY" >> $GITHUB_ENV
-
-      - name: Print Summary in Logs
-        run: |
-          echo "📌 Summary for PR #${{ env.PR_NUMBER }}:"
-          echo "------------------------------------"
-          echo "- **Title:** ${{ env.PR_TITLE }}"
-          echo "- **Author:** ${{ env.PR_AUTHOR }}"
-          echo "- **Date:** ${{ env.PR_DATE }}"
-          echo "- **Files Changed:** ${{ env.PR_FILES }}"
-          echo ""
-          echo "🔥 **AI Summary:**"
-          echo "${{ env.AI_SUMMARY }}"
+          echo "✅ AI-generated release notes are ready."
