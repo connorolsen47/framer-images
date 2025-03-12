@@ -37,10 +37,10 @@ jobs:
           RELEASE_DRAFT=$(echo "$PR_LIST_JSON" | jq -c '
             map({
               title: .title,
-              author: if .author.name then .author.name else .author.login end,  # ✅ Proper fallback
+              author: (.author.name // .author.login),  # ✅ Corrected fallback for author name
               date: (.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]),
               body: .body,
-              files: if .files then [.files[].path] else [] end  # ✅ Handle empty file lists
+              files: (if .files then [.files[].path] else [] end)  # ✅ Corrected conditional syntax
             })'
           )
 
