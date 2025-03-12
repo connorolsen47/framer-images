@@ -1,4 +1,4 @@
-name: Weekly Automated Release Notes
+name: Weekly Automated Release Notes  # ✅ This restores the correct name
 
 on:
   schedule:
