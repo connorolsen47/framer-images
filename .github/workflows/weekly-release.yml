@@ -55,18 +55,18 @@ jobs:
             # **Step 1: Keep Original PR List Format**
             PR_LIST="$PR_LIST\n- **$PR_TITLE**\n- **Author:** $PR_AUTHOR\n- **Date:** $PR_DATE\n\n$PR_BODY\n"
           
-            # **Step 2: AI Summary Request (with Proper JSON Formatting)**
+            # **Step 2: AI Summary Request (Proper JSON Formatting)**
             AI_RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
               -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
               -H "Content-Type: application/json" \
-              -d '{
-                "model": "gpt-4o",
-                "messages": [
-                  {"role": "system", "content": "You are an AI assistant trained to generate concise and informative release notes. Summarize the following pull request details in a way that highlights key changes."},
-                  {"role": "user", "content": "Title: '"$PR_TITLE"'\nDescription: '"$PR_BODY"'\nFiles changed: '"$PR_FILES_ESCAPED"'"}
+              --json "{
+                \"model\": \"gpt-4o\",
+                \"messages\": [
+                  {\"role\": \"system\", \"content\": \"You are an AI assistant trained to generate concise and informative release notes. Summarize the following pull request details in a way that highlights key changes.\"},
+                  {\"role\": \"user\", \"content\": \"Title: $PR_TITLE\nDescription: $PR_BODY\nFiles changed: $PR_FILES_ESCAPED\"}
                 ]
-              }')
-          
+              }")
+
             echo "Raw AI response: $AI_RESPONSE"
           
             SUMMARY=$(echo "$AI_RESPONSE" | jq -r '.choices[0].message.content' 2>/dev/null || echo "AI failed to generate a summary.")
