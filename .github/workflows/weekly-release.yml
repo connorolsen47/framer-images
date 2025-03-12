@@ -26,7 +26,7 @@ jobs:
           map(
             "- **\(.title)**\n" +  
             "- **Author:** \(.author.name // .author.login)\n" +  # ✅ Show full name; fallback to username
-            "- **Date:** \(.mergedAt[5:7] + \"/\" + .mergedAt[8:10] + \"/\" + .mergedAt[0:4])\n\n" +  # ✅ Convert YYYY-MM-DD to MM/DD/YYYY
+            "- **Date:** \(.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0])\n\n" +  # ✅ Convert YYYY-MM-DD to MM/DD/YYYY
             "\(.body)\n"
           ) | join("\n\n")')
 
