@@ -1,24 +1,4 @@
-name: Weekly Automated Release Notes
-
-on:
-  schedule:
-    - cron: "0 20 * * 5"  # ✅ Runs every Friday at 3 PM EST (20:00 UTC)
-  workflow_dispatch:  # ✅ Allows manual trigger
-
-permissions:
-  contents: write
-  pull-requests: write  # ✅ Required to modify PR labels
-
-jobs:
-  generate-release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # ✅ Ensures full commit history for PR data
-
-      - name: Get PRs from the Last 7 Days
+- name: Get PRs from the Last 7 Days
   id: get-prs
   run: |
     echo "Fetching merged PRs with the 'release' label..."
@@ -81,35 +61,3 @@ jobs:
     echo "EOF" >> $GITHUB_ENV
   env:
     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate Unique Release Tag
-        id: release-tag
-        run: |
-          BASE_TAG=$(date +'%Y-%m-%d').v1
-          TAG=$BASE_TAG
-          COUNTER=1
-          
-          while gh release view "$TAG" >/dev/null 2>&1; do
-            COUNTER=$((COUNTER + 1))
-            TAG="${BASE_TAG}.${COUNTER}"
-          done
-          
-          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create GitHub Release
-        run: |
-          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y')"  # ✅ New title format: Month DD, YYYY
-
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.PR_LIST }}\n\n### AI-Generated Summaries\n\n${{ env.AI_SUMMARIES }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update PR Labels (Change 'release' → 'released')
-        run: |
-          for PR in ${{ env.PR_NUMBERS }}; do
-            gh pr edit "$PR" --remove-label "release" --add-label "released"
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
