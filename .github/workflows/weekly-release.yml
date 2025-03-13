@@ -18,6 +18,10 @@ jobs:
         with:
           fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
+
+      # <----      Get PRs from the Last 8 Days  ---- >
+
+      
       - name: Get PRs from the Last 8 Days
         id: get-prs
         run: |
@@ -47,6 +51,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+
+      # <----      Generate AI Summaries for Each PR  ---- >
+
+      
       - name: Generate AI Summaries for Each PR
         id: ai-summaries
         run: |
@@ -115,6 +123,10 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+
+      # <----      Generate Unique Release Tag  ---- >
+
+      
       - name: Generate Unique Release Tag (Now Uses PST)
         id: release-tag
         run: |
@@ -130,6 +142,10 @@ jobs:
           echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+
+      # <----      Create GitHub Release with AI Summary  ---- >
+
 
       - name: Create GitHub Release with AI Summary
         run: |
@@ -145,7 +161,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_SUMMARIES: ${{ env.AI_SUMMARIES }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          
 
+      # <----      Update PR Labels (Change 'release' → 'released')  ---- >
+
+      
       - name: Update PR Labels (Change 'release' → 'released')
         run: |
           for PR in $(echo "$PR_LIST_JSON" | jq -r '.[].number'); do
