@@ -18,8 +18,6 @@ jobs:
         with:
           fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
-
-
  - name: Get PRs from the Last 7 Days
         id: get-prs
         run: |
@@ -48,11 +46,6 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-
-
-      
 
       - name: Generate AI Summaries for Each PR
         id: ai-summaries
