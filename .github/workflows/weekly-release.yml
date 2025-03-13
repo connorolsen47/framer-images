@@ -61,7 +61,7 @@ jobs:
               messages: [
                 { 
                   role: "system", 
-                  content: "You are an AI assistant specializing in summarizing GitHub pull requests. Your summaries should be clear, professional, and user-friendly, providing key takeaways without unnecessary details. Avoid phrases like 'This pull request does...' and instead focus on the impact of the changes. Your summaries will be read by end-users of our software, so emphasize what has changed and how it benefits them."
+                  content: "You are an AI assistant specializing in summarizing GitHub pull requests. Your summaries should be clear, professional, and user-friendly, providing key takeaways without unnecessary details. Avoid phrases like \"This pull request does...\" and instead focus on the impact of the changes. Your summaries will be read by end-users of our software, so emphasize what has changed and how it benefits them."
                 },
                 { 
                   role: "user", 
