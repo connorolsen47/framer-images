@@ -18,17 +18,17 @@ jobs:
         with:
           fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
-      - name: Get PRs from the Last 7 Days
+      - name: Get PRs from the Last 8 Days
         id: get-prs
         run: |
-          # Get the date 7 days ago in ISO 8601 format
-          SEVEN_DAYS_AGO=$(date -u -d "7 days ago" +"%Y-%m-%dT%H:%M:%SZ")
+          # Get the date 8 days ago in ISO 8601 format
+          EIGHT_DAYS_AGO=$(date -u -d "8 days ago" +"%Y-%m-%dT%H:%M:%SZ")
 
           # Fetch PRs merged with the "release" label
           PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100 | 
-            jq --arg cutoff "$SEVEN_DAYS_AGO" '[.[] | select(.mergedAt > $cutoff)]')
+            jq --arg cutoff "$EIGHT_DAYS_AGO" '[.[] | select(.mergedAt > $cutoff)]')
 
-          echo "Filtered PR_LIST_JSON output (last 7 days only):"
+          echo "Filtered PR_LIST_JSON output (last 8 days only):"
           echo "$PR_LIST_JSON"
 
           # Save raw JSON for debugging
