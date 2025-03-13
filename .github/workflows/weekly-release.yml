@@ -55,7 +55,7 @@ jobs:
             
             # ✅ Convert PR merge date to PST correctly
             PR_DATE_UTC=$(echo "$PR" | jq -r '.mergedAt')
-            PR_DATE=$(date --utc --date="$PR_DATE_UTC" +"%m/%d/%Y")  # ✅ Fixed date conversion
+            PR_DATE=$(TZ=America/Los_Angeles date --date="$PR_DATE_UTC" +"%m/%d/%Y")  # ✅ Fixed date conversion
 
             PR_BODY=$(echo "$PR" | jq -r '.body')
 
@@ -110,10 +110,10 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Generate Unique Release Tag
+      - name: Generate Unique Release Tag (Now Uses PST)
         id: release-tag
         run: |
-          BASE_TAG=$(date -u +"%Y-%m-%d").v1  # ✅ Uses UTC time to maintain consistency
+          BASE_TAG=$(TZ=America/Los_Angeles date +"%Y-%m-%d").v1  # ✅ Now uses PST
           TAG=$BASE_TAG
           COUNTER=1
 
