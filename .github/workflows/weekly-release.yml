@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
-- name: Get PRs from the Last 7 Days
+      - name: Get PRs from the Last 7 Days
         id: get-prs
         run: |
           PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100)
