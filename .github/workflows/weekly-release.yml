@@ -53,9 +53,9 @@ jobs:
             PR_TITLE=$(echo "$PR" | jq -r '.title')
             PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login')
             
-            # ✅ Convert PR merge date to PST
+            # ✅ Convert PR merge date to PST correctly
             PR_DATE_UTC=$(echo "$PR" | jq -r '.mergedAt')
-            PR_DATE=$(date -d "$PR_DATE_UTC UTC" +"%m/%d/%Y")  # ✅ Convert to PST format
+            PR_DATE=$(date --utc --date="$PR_DATE_UTC" +"%m/%d/%Y")  # ✅ Fixed date conversion
 
             PR_BODY=$(echo "$PR" | jq -r '.body')
 
