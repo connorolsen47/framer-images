@@ -25,7 +25,7 @@ jobs:
           EIGHT_DAYS_AGO=$(date -u -d "8 days ago" +"%Y-%m-%dT%H:%M:%SZ")
 
           # Fetch PRs merged with the "release" label
-          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body --limit 100 | 
+          PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body | 
             jq --arg cutoff "$EIGHT_DAYS_AGO" '[.[] | select(.mergedAt > $cutoff)]')
 
           echo "Filtered PR_LIST_JSON output (last 8 days only):"
