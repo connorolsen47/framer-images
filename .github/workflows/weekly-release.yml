@@ -83,10 +83,10 @@ jobs:
             # Append the formatted summary to AI_SUMMARIES
             if [[ -z "$AI_SUMMARIES" ]]; then
               # First PR (No extra line break)
-              AI_SUMMARIES="<h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br><br>Summary:<br>$SUMMARY"
+              AI_SUMMARIES="<h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
             else
               # Additional PRs (Add line break between PRs)
-              AI_SUMMARIES+="<br><br><h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br><br>Summary:<br>$SUMMARY"
+              AI_SUMMARIES+="<br><br><h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
             fi
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
