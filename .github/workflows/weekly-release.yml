@@ -52,21 +52,15 @@ jobs:
           while read -r PR; do
             PR_TITLE=$(echo "$PR" | jq -r '.title')
             PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login')
-            PR_DATE=$(echo "$PR" | jq -r '.mergedAt | split("-") | .[1] + "/" + .[2][:2] + "/" + .[0]')
+            PR_DATE=$(echo "$PR" | jq -r '.mergedAt | TZ=America/Los_Angeles date "+%m/%d/%Y"')
             PR_BODY=$(echo "$PR" | jq -r '.body')
 
-            # Construct JSON payload with updated prompt
+            # Construct JSON payload
             JSON_PAYLOAD=$(jq -n --arg title "$PR_TITLE" --arg body "$PR_BODY" '{
               model: "gpt-4o",
               messages: [
-                { 
-                  role: "system", 
-                  content: "You are an AI assistant specializing in summarizing GitHub pull requests. Your summaries should be clear, professional, and user-friendly, providing key takeaways without unnecessary details. Avoid phrases like \"This pull request does...\" and instead focus on the impact of the changes. Your summaries will be read by end-users of our software, so emphasize what has changed and how it benefits them."
-                },
-                { 
-                  role: "user", 
-                  content: "Summarize the following pull request:\n\nTitle: \($title)\nDescription: \($body)" 
-                }
+                { role: "system", content: "You are an AI assistant specializing in summarizing GitHub pull requests. Your summaries should be clear, professional, and user-friendly, providing key takeaways without unnecessary details. Avoid phrases like 'This pull request does...' and instead focus on the impact of the changes. Your summaries will be read by end-users of our software, so emphasize what has changed and how it benefits them." },
+                { role: "user", content: "Summarize the following pull request:\n\nTitle: \($title)\nDescription: \($body)" }
               ]
             }')
 
@@ -89,10 +83,10 @@ jobs:
             # Append the formatted summary to AI_SUMMARIES
             if [[ -z "$AI_SUMMARIES" ]]; then
               # First PR (No extra line break)
-              AI_SUMMARIES="<h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
+              AI_SUMMARIES="<h2 style='font-size:24px;'>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
             else
               # Additional PRs (Add line break between PRs)
-              AI_SUMMARIES+="<br><br><h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
+              AI_SUMMARIES+="<br><br><h2 style='font-size:24px;'>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
             fi
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
@@ -106,10 +100,10 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Generate Unique Release Tag
+      - name: Generate Unique Release Tag in PST
         id: release-tag
         run: |
-          BASE_TAG=$(date +'%Y-%m-%d').v1
+          BASE_TAG=$(TZ=America/Los_Angeles date +'%Y-%m-%d').v1
           TAG=$BASE_TAG
           COUNTER=1
 
@@ -124,7 +118,7 @@ jobs:
 
       - name: Create GitHub Release with AI Summary
         run: |
-          RELEASE_TITLE="Weekly Release Notes - $(date +'%B %d, %Y') ($RELEASE_TAG)"
+          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
 
           RELEASE_BODY="$AI_SUMMARIES"
 
