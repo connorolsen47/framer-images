@@ -52,7 +52,11 @@ jobs:
           while read -r PR; do
             PR_TITLE=$(echo "$PR" | jq -r '.title')
             PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login')
-            PR_DATE=$(echo "$PR" | jq -r '.mergedAt | TZ=America/Los_Angeles date "+%m/%d/%Y"')
+            
+            # ✅ Convert PR merge date to PST
+            PR_DATE_UTC=$(echo "$PR" | jq -r '.mergedAt')
+            PR_DATE=$(date -d "$PR_DATE_UTC UTC" +"%m/%d/%Y")  # ✅ Convert to PST format
+
             PR_BODY=$(echo "$PR" | jq -r '.body')
 
             # Construct JSON payload
@@ -83,10 +87,10 @@ jobs:
             # Append the formatted summary to AI_SUMMARIES
             if [[ -z "$AI_SUMMARIES" ]]; then
               # First PR (No extra line break)
-              AI_SUMMARIES="<h2 style='font-size:24px;'>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
+              AI_SUMMARIES="<h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
             else
               # Additional PRs (Add line break between PRs)
-              AI_SUMMARIES+="<br><br><h2 style='font-size:24px;'>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
+              AI_SUMMARIES+="<br><br><h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
             fi
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
@@ -100,10 +104,10 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: Generate Unique Release Tag in PST
+      - name: Generate Unique Release Tag
         id: release-tag
         run: |
-          BASE_TAG=$(TZ=America/Los_Angeles date +'%Y-%m-%d').v1
+          BASE_TAG=$(date -u +"%Y-%m-%d").v1  # ✅ Uses UTC time to maintain consistency
           TAG=$BASE_TAG
           COUNTER=1
 
@@ -118,7 +122,7 @@ jobs:
 
       - name: Create GitHub Release with AI Summary
         run: |
-          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
+          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"  # ✅ Uses PST date for the title
 
           RELEASE_BODY="$AI_SUMMARIES"
 
