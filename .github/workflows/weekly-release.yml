@@ -49,8 +49,6 @@ jobs:
           
           AI_SUMMARIES=""
 
-          FIRST_PR=true  # ✅ Ensures no extra breaks at the start
-
           while read -r PR; do
             PR_TITLE=$(echo "$PR" | jq -r '.title')
             PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login')
@@ -88,15 +86,14 @@ jobs:
 
             echo "Generated AI Summary: $SUMMARY"
 
-            # Ensure no extra breaks before the first PR
-            if [ "$FIRST_PR" = true ]; then
-              FIRST_PR=false
-            else
-              AI_SUMMARIES+="<br><br>"  # ✅ Add spacing **only** between PRs
-            fi
-
             # Append the formatted summary to AI_SUMMARIES
-            AI_SUMMARIES+="<span style='font-size:24px; font-weight:bold;'>$PR_TITLE</span><br>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
+            if [[ -z "$AI_SUMMARIES" ]]; then
+              # First PR (No extra line break)
+              AI_SUMMARIES="<h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
+            else
+              # Additional PRs (Add line break between PRs)
+              AI_SUMMARIES+="<br><br><h2>$PR_TITLE</h2>Date: $PR_DATE<br>Author: $PR_AUTHOR<br>Summary: $SUMMARY"
+            fi
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
           echo "Final AI Summaries:"
