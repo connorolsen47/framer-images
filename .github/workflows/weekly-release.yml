@@ -124,6 +124,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # <----      Create Draft GitHub Release  ---- >
+
+      - name: Create Draft GitHub Release
+        run: |
+          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
+          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARIES }}" --draft
+        env:
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+
       # <----      Save Release Notes as MDX File and Create a Branch  ---- >
 
       - name: Save Release Notes as MDX File and Create a Branch
@@ -161,14 +170,5 @@ jobs:
             --title "Release ${{ env.RELEASE_TAG }}" \
             --body "This pull request contains the draft release notes for **${{ env.RELEASE_TAG }}**. Please review before merging and publishing the release." \
             --draft
-        env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
-
-      # <----      Create Draft GitHub Release  ---- >
-
-      - name: Create Draft GitHub Release
-        run: |
-          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARIES }}" --draft
         env:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
