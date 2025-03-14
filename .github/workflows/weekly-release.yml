@@ -117,18 +117,34 @@ jobs:
         run: |
           mkdir -p internal-docs
           RELEASE_FILE="internal-docs/${{ env.RELEASE_TAG }}.mdx"
+
           echo -e "# Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')\n\n${{ env.AI_SUMMARIES }}" > "$RELEASE_FILE"
 
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
 
           BRANCH_NAME="release-${{ env.RELEASE_TAG }}"
-          git checkout -b "$BRANCH_NAME"
+
+          # Fetch latest to avoid conflicts
+          git fetch origin main
+
+          # Create and switch to new branch if it doesn't exist
+          if git rev-parse --verify "$BRANCH_NAME" >/dev/null 2>&1; then
+            git checkout "$BRANCH_NAME"
+          else
+            git checkout -b "$BRANCH_NAME"
+          fi
+
+          # Pull latest changes to prevent fast-forward errors
+          git pull --rebase origin main
+
           git add "$RELEASE_FILE"
           git commit -m "Add release notes for ${{ env.RELEASE_TAG }}"
+
+          # Push the branch
           git push origin "$BRANCH_NAME"
         env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}  # ✅ Uses PAT token
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}  # ✅ Uses PAT toke
 
       # <----      Create Pull Request for Review  ---- >
 
