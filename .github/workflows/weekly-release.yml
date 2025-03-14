@@ -49,9 +49,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-       # <----      Generate AI Summaries for Each PR  ---- >
+      # <----      Generate AI Summaries for Each PR  ---- >
 
-      
       - name: Generate AI Summaries for Each PR
         id: ai-summaries
         run: |
@@ -100,74 +99,56 @@ jobs:
 
             echo "Generated AI Summary: $SUMMARY"
 
-            # Append the formatted summary using Markdown syntax
-            if [[ -z "$AI_SUMMARIES" ]]; then
-              # First PR (No extra line break)
-              AI_SUMMARIES="## $PR_TITLE\n\n**Date:** $PR_DATE  \n**Author:** $PR_AUTHOR  \n\n**Summary:**\n$SUMMARY\n\n---"
-            else
-              # Additional PRs (Add a divider between PRs)
-              AI_SUMMARIES+="\n\n## $PR_TITLE\n\n**Date:** $PR_DATE  \n**Author:** $PR_AUTHOR  \n\n**Summary:**\n$SUMMARY\n\n---"
-            fi
+            AI_SUMMARIES+="\n\n## $PR_TITLE\n\n**Date:** $PR_DATE  \n**Author:** $PR_AUTHOR  \n\n**Summary:**\n$SUMMARY\n\n---"
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
 
           echo "Final AI Summaries:"
           echo "$AI_SUMMARIES"
 
-          # Save the AI summaries to the environment variable
           echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
           echo "$AI_SUMMARIES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      # <----      Generate Unique Release Tag  ---- >
+      # <----      Save Release Notes as MDX File and Create a Branch  ---- >
 
-      - name: Generate Unique Release Tag (Custom Versioning)
-        id: release-tag
+      - name: Save Release Notes as MDX File and Create a Branch
         run: |
-          # Fetch the latest tag from GitHub (ignoring errors if no tags exist yet)
-          LATEST_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+          mkdir -p internal-docs
+          RELEASE_FILE="internal-docs/${{ env.RELEASE_TAG }}.mdx"
+          echo -e "# Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')\n\n${{ env.AI_SUMMARIES }}" > "$RELEASE_FILE"
 
-          # Set default major version (manually updated when needed)
-          MAJOR=0  # You can manually update this when needed
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions"
 
-          # If no tags exist, start with v0.1.0
-          if [[ -z "$LATEST_TAG" ]]; then
-            MINOR=1
-          else
-            # Extract minor version
-            MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
-            # Increment minor version
-            MINOR=$((MINOR + 1))
-          fi
-
-          # Fetch the number of merged PRs
-          PATCH=$(gh pr list --state merged --json number | jq 'length')
-
-          # Construct new version tag
-          NEW_TAG="v$MAJOR.$MINOR.$PATCH"
-
-          echo "Generated new custom release tag: $NEW_TAG"
-          echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
+          BRANCH_NAME="release-${{ env.RELEASE_TAG }}"
+          git checkout -b "$BRANCH_NAME"
+          git add "$RELEASE_FILE"
+          git commit -m "Add release notes for ${{ env.RELEASE_TAG }}"
+          git push origin "$BRANCH_NAME"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # <----      Create GitHub Release with AI Summary  ---- >
+      # <----      Create Pull Request for Review  ---- >
 
-      - name: Create GitHub Release with AI Summary
+      - name: Create Pull Request
         run: |
-          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"  # ✅ Uses PST date for the title
-
-          RELEASE_BODY="$AI_SUMMARIES"
-
-          echo "Final Release Notes (Markdown):"
-          echo "$RELEASE_BODY"
-
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "$RELEASE_BODY" --notes-file <(echo -e "$RELEASE_BODY")
+          gh pr create --base main --head "release-${{ env.RELEASE_TAG }}" \
+            --title "Release ${{ env.RELEASE_TAG }}" \
+            --body "This pull request contains the draft release notes for **${{ env.RELEASE_TAG }}**. Please review before merging and publishing the release." \
+            --draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AI_SUMMARIES: ${{ env.AI_SUMMARIES }}
-          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+
+      # <----      Create Draft GitHub Release  ---- >
+
+      - name: Create Draft GitHub Release
+        run: |
+          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
+          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARIES }}" --draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # <----      Update PR Labels (Change 'release' → 'released')  ---- >
 
