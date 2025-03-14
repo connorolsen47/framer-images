@@ -49,8 +49,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-             # <----      Generate AI Summaries for Each PR  ---- >
+       # <----      Generate AI Summaries for Each PR  ---- >
 
+      
       - name: Generate AI Summaries for Each PR
         id: ai-summaries
         run: |
@@ -68,17 +69,17 @@ jobs:
 
             PR_BODY=$(echo "$PR" | jq -r '.body')
 
-            # Construct JSON payload (Fixed escaping issue)
+            # Construct JSON payload (Forces markdown without unnecessary headings)
             JSON_PAYLOAD=$(jq -n --arg title "$PR_TITLE" --arg body "$PR_BODY" '{
               model: "gpt-4o",
               messages: [
                 { 
                   role: "system", 
-                  content: "You are an AI assistant specializing in summarizing GitHub pull requests. Your summaries should be clear, professional, and user-friendly, providing key takeaways without unnecessary details. Since this is customer-facing, do not include any specific files. Your response **must be formatted in GitHub Markdown**.\n\n**Do not include any headings like \"Summary\" or \"Summary of Changes\".** Just provide the formatted content using bullet points or structured lists where applicable."
+                  content: "You are an AI assistant specializing in summarizing GitHub pull requests. Your summaries should be clear, professional, and user-friendly, providing key takeaways without unnecessary details. Since this is customer-facing, do not include any specific file names. Your response **must be formatted in GitHub Markdown**.\n\n**Do not include any headings like \"Summary\" or \"Summary of Changes\".** Just provide a paragraph overview/summary and additional formatted content using bullet points or structured lists if it enhances the summary."
                 },
                 { 
                   role: "user", 
-                  content: "Summarize the following pull request **in GitHub Markdown format**:\n\n## Title: \($title)\n\n**Description:** \($body)\n\n**Format Requirements:**\n- **DO NOT** include a heading like \"## Summary\" or \"## Summary of Changes\".\n- Start directly with the summary body.\n- Use bullet points or numbered lists where necessary.\n- Keep the response concise, structured, and customer-friendly."
+                  content: "Summarize the following pull request **in GitHub Markdown format**:\n\n## Title: \($title)\n\n**Description:** \($body)\n\n**Format Requirements:**\n- **DO NOT** include a heading like \"## Summary\" or \"## Summary of Changes\".\n- Start directly with the summary body.\n- Provide a paragraph overview and additional bullet points or numbered lists where necessary.\n- Keep the response concise, structured, and customer-friendly."
                 }
               ]
             }')
