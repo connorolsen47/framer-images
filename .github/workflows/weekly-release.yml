@@ -49,7 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-       # <----      Generate AI Summaries for Each PR  ---- >
+             # <----      Generate AI Summaries for Each PR  ---- >
 
       - name: Generate AI Summaries for Each PR
         id: ai-summaries
