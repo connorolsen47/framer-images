@@ -77,9 +77,6 @@ jobs:
               ]
             }')
 
-            echo "Generated JSON Payload:"
-            echo "$JSON_PAYLOAD" | jq .
-
             RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
               -H "Authorization: Bearer $OPENAI_API_KEY" \
               -H "Content-Type: application/json" \
@@ -89,9 +86,6 @@ jobs:
 
             AI_SUMMARIES+="\n\n## $PR_TITLE\n\n**Date:** $PR_DATE  \n**Author:** $PR_AUTHOR  \n\n**Summary:**\n$SUMMARY\n\n---"
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
-
-          echo "Final AI Summaries:"
-          echo "$AI_SUMMARIES"
 
           echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
           echo "$AI_SUMMARIES" >> $GITHUB_ENV
@@ -107,7 +101,6 @@ jobs:
           LATEST_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
 
           MAJOR=0  
-
           if [[ -z "$LATEST_TAG" ]]; then
             MINOR=1
           else
@@ -119,19 +112,9 @@ jobs:
 
           NEW_TAG="v$MAJOR.$MINOR.$PATCH"
 
-          echo "Generated new custom release tag: $NEW_TAG"
           echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # <----      Create Draft GitHub Release  ---- >
-
-      - name: Create Draft GitHub Release
-        run: |
-          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARIES }}" --draft
-        env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
 
       # <----      Save Release Notes as MDX File and Create a Branch  ---- >
 
@@ -139,6 +122,10 @@ jobs:
         run: |
           mkdir -p internal-docs
           RELEASE_FILE="internal-docs/${{ env.RELEASE_TAG }}.mdx"
+
+          if [ -f "$RELEASE_FILE" ]; then
+            rm "$RELEASE_FILE"
+          fi
 
           echo -e "# Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')\n\n${{ env.AI_SUMMARIES }}" > "$RELEASE_FILE"
 
@@ -148,17 +135,12 @@ jobs:
           BRANCH_NAME="release${{ env.RELEASE_TAG }}"
 
           git fetch origin main
+          git branch -D "$BRANCH_NAME" || true  # Delete the branch if it exists
 
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME"; then
-            git checkout "$BRANCH_NAME"
-            git pull --rebase origin "$BRANCH_NAME"
-          else
-            git checkout -b "$BRANCH_NAME"
-          fi
-
+          git checkout -b "$BRANCH_NAME"
           git add "$RELEASE_FILE"
           git commit -m "Add release notes for ${{ env.RELEASE_TAG }}"
-          git push origin "$BRANCH_NAME"
+          git push -f origin "$BRANCH_NAME"
         env:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
 
