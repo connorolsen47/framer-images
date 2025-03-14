@@ -164,3 +164,14 @@ jobs:
           gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes-file release_notes.md --draft
         env:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+
+
+          # <----      Update PR Labels (Change 'release' → 'released')  ---- >
+
+      - name: Update PR Labels (Change 'release' → 'released')
+        run: |
+          for PR in $(echo "$PR_LIST_JSON" | jq -r '.[].number'); do
+            gh pr edit "$PR" --remove-label "release" --add-label "released"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
