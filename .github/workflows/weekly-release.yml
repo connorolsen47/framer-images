@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0  # ✅ Ensures full commit history for PR data
 
-      # <----      Get PRs from the Last 8 Days  ---- >
+      # <---- Get PRs from the Last 8 Days ---- >
 
       - name: Get PRs from the Last 8 Days
         id: get-prs
@@ -45,7 +45,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # <----      Generate AI Summaries for Each PR  ---- >
+      # <---- Generate AI Summaries for Each PR ---- >
 
       - name: Generate AI Summaries for Each PR
         id: ai-summaries
@@ -93,7 +93,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      # <----      Generate Unique Release Tag  ---- >
+      # <---- Generate Unique Release Tag ---- >
 
       - name: Generate Unique Release Tag (Custom Versioning)
         id: release-tag
@@ -116,7 +116,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # <----      Save Release Notes as MDX File and Create a Branch  ---- >
+      # <---- Save Release Notes as MDX File and Create a Branch ---- >
 
       - name: Save Release Notes as MDX File and Create a Branch
         run: |
@@ -135,7 +135,7 @@ jobs:
           BRANCH_NAME="release${{ env.RELEASE_TAG }}"
 
           git fetch origin main
-          git branch -D "$BRANCH_NAME" || true  # Delete the branch if it exists
+          git branch -D "$BRANCH_NAME" || true  # Delete existing branch if it exists
 
           git checkout -b "$BRANCH_NAME"
           git add "$RELEASE_FILE"
@@ -144,7 +144,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
 
-      # <----      Create Pull Request for Review  ---- >
+      # <---- Create Pull Request for Review ---- >
 
       - name: Create Pull Request
         run: |
@@ -152,5 +152,15 @@ jobs:
             --title "Release ${{ env.RELEASE_TAG }}" \
             --body "This pull request contains the draft release notes for **${{ env.RELEASE_TAG }}**. Please review before merging and publishing the release." \
             --draft
+        env:
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+
+      # <---- Create Draft GitHub Release ---- >
+
+      - name: Create Draft GitHub Release
+        run: |
+          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
+          echo -e "${{ env.AI_SUMMARIES }}" > release_notes.md
+          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes-file release_notes.md --draft
         env:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
