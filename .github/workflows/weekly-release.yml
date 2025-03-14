@@ -127,33 +127,29 @@ jobs:
       # <----      Generate Unique Release Tag  ---- >
 
       
-  # <----      Generate Unique Release Tag (SemVer)  ---- >
+# <----      Generate Unique Release Tag  ---- >
 
       
-      - name: Generate Unique Release Tag (Now Uses SemVer)
+      - name: Generate Unique Release Tag (SemVer)
         id: release-tag
         run: |
-          # Fetch the latest release tag
+          # Fetch the latest tag from GitHub (ignoring errors if no tags exist yet)
           LATEST_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
 
-          # Default to starting version 0.0.0 if no previous tag exists
+          # If no tags exist, start with v0.0.0
           if [[ -z "$LATEST_TAG" ]]; then
-            NEW_TAG="0.1.0"  # ✅ Initial version
+            NEW_TAG="v0.1.0"
           else
-            # Extract major, minor, patch numbers
-            MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1)
+            # Extract major, minor, and patch versions
+            MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1 | sed 's/v//')
             MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
             PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
 
-            # Increment minor version and reset patch
-            MINOR=$((MINOR + 1))
-            PATCH=0
-
-            # Construct new tag
-            NEW_TAG="$MAJOR.$MINOR.$PATCH"
+            # Increment the MINOR version and reset PATCH to 0
+            NEW_TAG="v$MAJOR.$((MINOR + 1)).0"
           fi
 
-          echo "New Release Tag: $NEW_TAG"
+          echo "Generated new SemVer release tag: $NEW_TAG"
           echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
