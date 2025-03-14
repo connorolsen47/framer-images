@@ -127,7 +127,7 @@ jobs:
             rm "$RELEASE_FILE"
           fi
 
-          echo -e "# Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')\n\n${{ env.AI_SUMMARIES }}" > "$RELEASE_FILE"
+          echo -e "# Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')\n\n${{ env.AI_SUMMARIES }}" > "$RELEASE_FILE"
 
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
@@ -159,7 +159,7 @@ jobs:
 
       - name: Publish GitHub Release
         run: |
-          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
+          RELEASE_TITLE="Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
           echo -e "${{ env.AI_SUMMARIES }}" > release_notes.md
           gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes-file release_notes.md
         env:
