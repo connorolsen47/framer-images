@@ -111,7 +111,32 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      # <----      Create a Branch and Save Release Notes as MDX File  ---- >
+      # <----      Generate Unique Release Tag  ---- >
+
+      - name: Generate Unique Release Tag (Custom Versioning)
+        id: release-tag
+        run: |
+          LATEST_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
+
+          MAJOR=0  # Manually updated as needed
+
+          if [[ -z "$LATEST_TAG" ]]; then
+            MINOR=1
+          else
+            MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
+            MINOR=$((MINOR + 1))
+          fi
+
+          PATCH=$(gh pr list --state merged --json number | jq 'length')
+
+          NEW_TAG="v$MAJOR.$MINOR.$PATCH"
+
+          echo "Generated new custom release tag: $NEW_TAG"
+          echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # <----      Save Release Notes as MDX File and Create a Branch  ---- >
 
       - name: Save Release Notes as MDX File and Create a Branch
         run: |
@@ -123,12 +148,10 @@ jobs:
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
 
-          BRANCH_NAME="release${{ env.RELEASE_TAG }}"  # No dash
+          BRANCH_NAME="release${{ env.RELEASE_TAG }}"
 
-          # Fetch latest to avoid conflicts
           git fetch origin main
 
-          # Check if branch exists, switch to it or create a new one
           if git ls-remote --exit-code --heads origin "$BRANCH_NAME"; then
             git checkout "$BRANCH_NAME"
             git pull --rebase origin "$BRANCH_NAME"
@@ -136,11 +159,8 @@ jobs:
             git checkout -b "$BRANCH_NAME"
           fi
 
-          # Stage and commit the new file
           git add "$RELEASE_FILE"
           git commit -m "Add release notes for ${{ env.RELEASE_TAG }}"
-
-          # Push the branch
           git push origin "$BRANCH_NAME"
         env:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
@@ -149,28 +169,9 @@ jobs:
 
       - name: Create Pull Request
         run: |
-          gh pr create --base main --head "release-${{ env.RELEASE_TAG }}" \
+          gh pr create --base main --head "release${{ env.RELEASE_TAG }}" \
             --title "Release ${{ env.RELEASE_TAG }}" \
             --body "This pull request contains the draft release notes for **${{ env.RELEASE_TAG }}**. Please review before merging and publishing the release." \
             --draft
         env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}  # ✅ Uses PAT token
-
-      # <----      Create Draft GitHub Release  ---- >
-
-      - name: Create Draft GitHub Release
-        run: |
-          RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARIES }}" --draft
-        env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}  # ✅ Uses PAT token
-
-      # <----      Update PR Labels (Change 'release' → 'released')  ---- >
-
-      - name: Update PR Labels (Change 'release' → 'released')
-        run: |
-          for PR in $(echo "$PR_LIST_JSON" | jq -r '.[].number'); do
-            gh pr edit "$PR" --remove-label "release" --add-label "released"
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
