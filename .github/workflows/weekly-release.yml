@@ -127,19 +127,34 @@ jobs:
       # <----      Generate Unique Release Tag  ---- >
 
       
-      - name: Generate Unique Release Tag (Now Uses PST)
+  # <----      Generate Unique Release Tag (SemVer)  ---- >
+
+      
+      - name: Generate Unique Release Tag (Now Uses SemVer)
         id: release-tag
         run: |
-          BASE_TAG=$(TZ=America/Los_Angeles date +"%Y-%m-%d").v1  # ✅ Now uses PST
-          TAG=$BASE_TAG
-          COUNTER=1
+          # Fetch the latest release tag
+          LATEST_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
 
-          while gh release view "$TAG" >/dev/null 2>&1; do
-            COUNTER=$((COUNTER + 1))
-            TAG="${BASE_TAG}.${COUNTER}"
-          done
+          # Default to starting version 0.0.0 if no previous tag exists
+          if [[ -z "$LATEST_TAG" ]]; then
+            NEW_TAG="0.1.0"  # ✅ Initial version
+          else
+            # Extract major, minor, patch numbers
+            MAJOR=$(echo "$LATEST_TAG" | cut -d. -f1)
+            MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
+            PATCH=$(echo "$LATEST_TAG" | cut -d. -f3)
 
-          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+            # Increment minor version and reset patch
+            MINOR=$((MINOR + 1))
+            PATCH=0
+
+            # Construct new tag
+            NEW_TAG="$MAJOR.$MINOR.$PATCH"
+          fi
+
+          echo "New Release Tag: $NEW_TAG"
+          echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
