@@ -155,18 +155,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
 
-      # <---- Create Draft GitHub Release ---- >
+      # <---- Publish GitHub Release (NOT a Draft) ---- >
 
-      - name: Create Draft GitHub Release
+      - name: Publish GitHub Release
         run: |
           RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
           echo -e "${{ env.AI_SUMMARIES }}" > release_notes.md
-          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes-file release_notes.md --draft
+          gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes-file release_notes.md
         env:
           GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
 
-
-          # <----      Update PR Labels (Change 'release' → 'released')  ---- >
+      # <---- Update PR Labels (Change 'release' → 'released') ---- >
 
       - name: Update PR Labels (Change 'release' → 'released')
         run: |
