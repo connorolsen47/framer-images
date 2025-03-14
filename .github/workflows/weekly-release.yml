@@ -111,7 +111,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      # <----      Save Release Notes as MDX File and Create a Branch  ---- >
+      # <----      Create a Branch and Save Release Notes as MDX File  ---- >
 
       - name: Save Release Notes as MDX File and Create a Branch
         run: |
@@ -128,7 +128,7 @@ jobs:
           git commit -m "Add release notes for ${{ env.RELEASE_TAG }}"
           git push origin "$BRANCH_NAME"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}  # ✅ Uses PAT token
 
       # <----      Create Pull Request for Review  ---- >
 
@@ -139,7 +139,7 @@ jobs:
             --body "This pull request contains the draft release notes for **${{ env.RELEASE_TAG }}**. Please review before merging and publishing the release." \
             --draft
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}  # ✅ Uses PAT token
 
       # <----      Create Draft GitHub Release  ---- >
 
@@ -148,7 +148,7 @@ jobs:
           RELEASE_TITLE="Weekly Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
           gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes "${{ env.AI_SUMMARIES }}" --draft
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}  # ✅ Uses PAT token
 
       # <----      Update PR Labels (Change 'release' → 'released')  ---- >
 
