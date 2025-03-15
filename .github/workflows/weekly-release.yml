@@ -135,14 +135,14 @@ jobs:
           BRANCH_NAME="release${{ env.RELEASE_TAG }}"
 
           git fetch origin main
-          git branch -D "$BRANCH_NAME" || true  # Delete existing branch if it exists
+          git branch -D "$BRANCH_NAME" || true  
 
           git checkout -b "$BRANCH_NAME"
           git add "$RELEASE_FILE"
           git commit -m "Add release notes for ${{ env.RELEASE_TAG }}"
           git push -f origin "$BRANCH_NAME"
         env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # <---- Create Pull Request for Review ---- >
 
@@ -153,7 +153,7 @@ jobs:
             --body "This pull request contains the draft release notes for **${{ env.RELEASE_TAG }}**. Please review before merging and publishing the release." \
             --draft
         env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # <---- Publish GitHub Release (NOT a Draft) ---- >
 
@@ -163,7 +163,7 @@ jobs:
           echo -e "${{ env.AI_SUMMARIES }}" > release_notes.md
           gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes-file release_notes.md
         env:
-          GH_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # <---- Update PR Labels (Change 'release' → 'released') ---- >
 
