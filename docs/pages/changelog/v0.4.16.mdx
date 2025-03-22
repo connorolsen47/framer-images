@@ -1,0 +1,18 @@
+# Release Notes - March 22, 2025
+
+
+
+## Updating SemVer to In-house Flex Versioning
+
+**Date:** 03/14/2025  
+**Author:** Connor Olsen  
+
+**Summary:**
+This pull request introduces an in-house versioning system to replace Semantic Versioning. The system defines specific rules for version component updates: the MAJOR version must be manually set and starts at 0 by default; the MINOR version increments automatically with every new release; and the PATCH version reflects the total count of merged pull requests. This newer versioning format results in tags like vMAJOR.MINOR.PATCH (e.g., v0.1.10), offering a more fluid and internally controlled approach to version management.
+
+- **MAJOR**: Manually updated, default is 0.
+- **MINOR**: Automatically increments with each release.
+- **PATCH**: Matches the count of merged PRs.  
+- **Tag Example**: v0.1.10.
+
+---
