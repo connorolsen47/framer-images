@@ -16,29 +16,21 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # ✅ Ensures full commit history for PR data
+          fetch-depth: 0
 
       # <---- Get PRs from the Last 8 Days ---- >
-
       - name: Get PRs from the Last 8 Days
         id: get-prs
         run: |
           EIGHT_DAYS_AGO=$(date -u -d "8 days ago" +"%Y-%m-%dT%H:%M:%SZ")
-
           PR_LIST_JSON=$(gh pr list --state merged --label release --json number,title,author,mergedAt,body | 
             jq --arg cutoff "$EIGHT_DAYS_AGO" '[.[] | select(.mergedAt > $cutoff)]')
-
-          echo "Filtered PR_LIST_JSON output (last 8 days only):"
-          echo "$PR_LIST_JSON"
-
           echo "$PR_LIST_JSON" > pr_list_raw.json
-
           if [[ -z "$PR_LIST_JSON" || "$PR_LIST_JSON" == "[]" ]]; then
             echo "No valid PRs found. Skipping AI summarization."
             echo "PR_LIST_JSON=[]" >> $GITHUB_ENV
-            exit 0  
+            exit 0
           fi
-
           echo "PR_LIST_JSON<<EOF" >> $GITHUB_ENV
           echo "$PR_LIST_JSON" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -46,23 +38,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # <---- Generate AI Summaries for Each PR ---- >
-
       - name: Generate AI Summaries for Each PR
         id: ai-summaries
         run: |
-          echo "Calling OpenAI API for each PR..."
-          
           AI_SUMMARIES=""
-
           while read -r PR; do
             PR_TITLE=$(echo "$PR" | jq -r '.title')
             PR_AUTHOR=$(echo "$PR" | jq -r '.author.name // .author.login')
-            
             PR_DATE_UTC=$(echo "$PR" | jq -r '.mergedAt')
-            PR_DATE=$(TZ=America/Los_Angeles date --date="$PR_DATE_UTC" +"%m/%d/%Y")  
-
+            PR_DATE=$(TZ=America/Los_Angeles date --date="$PR_DATE_UTC" +"%m/%d/%Y")
             PR_BODY=$(echo "$PR" | jq -r '.body')
-
             JSON_PAYLOAD=$(jq -n --arg title "$PR_TITLE" --arg body "$PR_BODY" '{
               model: "gpt-4o",
               messages: [
@@ -76,17 +61,13 @@ jobs:
                 }
               ]
             }')
-
             RESPONSE=$(curl -s https://api.openai.com/v1/chat/completions \
               -H "Authorization: Bearer $OPENAI_API_KEY" \
               -H "Content-Type: application/json" \
               --data-raw "$JSON_PAYLOAD")
-
             SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "**AI failed to generate a summary.**"')
-
             AI_SUMMARIES+="\n\n## $PR_TITLE\n\n**Date:** $PR_DATE  \n**Author:** $PR_AUTHOR  \n\n**Summary:**\n$SUMMARY\n\n---"
           done <<< "$(echo "$PR_LIST_JSON" | jq -c '.[]')"
-
           echo "AI_SUMMARIES<<EOF" >> $GITHUB_ENV
           echo "$AI_SUMMARIES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -94,58 +75,45 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       # <---- Generate Unique Release Tag ---- >
-
       - name: Generate Unique Release Tag (Custom Versioning)
         id: release-tag
         run: |
           LATEST_TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "")
-
-          MAJOR=0  
+          MAJOR=0
           if [[ -z "$LATEST_TAG" ]]; then
             MINOR=1
           else
             MINOR=$(echo "$LATEST_TAG" | cut -d. -f2)
             MINOR=$((MINOR + 1))
           fi
-
           PATCH=$(gh pr list --state merged --json number | jq 'length')
-
           NEW_TAG="v$MAJOR.$MINOR.$PATCH"
-
           echo "RELEASE_TAG=$NEW_TAG" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # <---- Save Release Notes as MDX File and Create a Branch ---- >
-
       - name: Save Release Notes as MDX File and Create a Branch
         run: |
-          mkdir -p changelog
-          RELEASE_FILE="changelog/${{ env.RELEASE_TAG }}.mdx"
-
+          mkdir -p docs/pages/changelog
+          RELEASE_FILE="docs/pages/changelog/${{ env.RELEASE_TAG }}.mdx"
           if [ -f "$RELEASE_FILE" ]; then
             rm "$RELEASE_FILE"
           fi
-
           echo -e "# Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')\n\n${{ env.AI_SUMMARIES }}" > "$RELEASE_FILE"
-
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-
           BRANCH_NAME="release${{ env.RELEASE_TAG }}"
-
           git fetch origin main
-          git branch -D "$BRANCH_NAME" || true  
-
+          git branch -D "$BRANCH_NAME" || true
           git checkout -b "$BRANCH_NAME"
           git add "$RELEASE_FILE"
           git commit -m "Add release notes for ${{ env.RELEASE_TAG }}"
           git push -f origin "$BRANCH_NAME"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CONNOR_RELEASE_NOTES }}
 
       # <---- Create Pull Request for Review ---- >
-
       - name: Create Pull Request
         run: |
           gh pr create --base main --head "release${{ env.RELEASE_TAG }}" \
@@ -153,20 +121,18 @@ jobs:
             --body "This pull request contains the draft release notes for **${{ env.RELEASE_TAG }}**. Please review before merging and publishing the release." \
             --draft
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CONNOR_RELEASE_NOTES }}
 
       # <---- Publish GitHub Release (NOT a Draft) ---- >
-
       - name: Publish GitHub Release
         run: |
           RELEASE_TITLE="Release Notes - $(TZ=America/Los_Angeles date +'%B %d, %Y')"
           echo -e "${{ env.AI_SUMMARIES }}" > release_notes.md
           gh release create "${{ env.RELEASE_TAG }}" --title "$RELEASE_TITLE" --notes-file release_notes.md
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CONNOR_RELEASE_NOTES }}
 
       # <---- Update PR Labels (Change 'release' → 'released') ---- >
-
       - name: Update PR Labels (Change 'release' → 'released')
         run: |
           for PR in $(echo "$PR_LIST_JSON" | jq -r '.[].number'); do
